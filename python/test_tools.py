@@ -406,7 +406,7 @@ class TestAITools(unittest.TestCase):
     def test_text_to_video_resolves_relative_output_url(self, call, _sleep):
         call.side_effect = [
             {"id": "job-1"},
-            {"status": "completed", "video_url": "/v1/media/job-1.mp4"},
+            {"status": "completed", "video": "/v1/media/job-1.mp4"},
             b"video",
         ]
         with tempfile.TemporaryDirectory() as directory:
@@ -420,7 +420,6 @@ class TestAITools(unittest.TestCase):
                             "base_url": "http://example.test/v1",
                             "endpoint": "/create",
                             "status_endpoint": "/jobs/{task_id}",
-                            "url_response_field": "video_url",
                             "poll_interval_seconds": 0,
                         }
                     }

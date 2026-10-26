@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import os
 import time
 from pathlib import Path
 from typing import Any, Mapping
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -291,13 +292,24 @@ def _save_video(
         item = response
 
     encoded = item.get(str(settings.get("base64_response_field", "video")))
+    video_bytes: bytes | None = None
+    video_url = None
     if encoded:
         encoded = str(encoded)
         if encoded.startswith("data:") and "," in encoded:
             encoded = encoded.split(",", 1)[1]
-        video_bytes = base64.b64decode(encoded, validate=True)
-    else:
-        video_url = item.get(str(settings.get("url_response_field", "url")))
+        try:
+            video_bytes = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError):
+            if _looks_like_video_url(encoded):
+                video_url = encoded
+            else:
+                raise RuntimeError(
+                    "Video API base64 field is not valid base64; configure "
+                    "ai.video.url_response_field if this field contains a URL"
+                ) from None
+    if video_bytes is None:
+        video_url = video_url or item.get(str(settings.get("url_response_field", "url")))
         if not video_url:
             raise RuntimeError(
                 "Video API response must contain base64 data or a video URL to save with --output"
@@ -321,3 +333,12 @@ def _save_video(
         raise RuntimeError("Video API returned empty video data")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(video_bytes)
+
+def _looks_like_video_url(value: str) -> bool:
+    """Recognize URL-shaped values returned in a provider's video field."""
+    parsed = urlsplit(value)
+    return (
+        parsed.scheme in {"http", "https"}
+        or value.startswith(("/", "./", "../"))
+        or Path(parsed.path).suffix.lower() in {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+    )
