@@ -1,0 +1,115 @@
+{
+  "database": {
+    "driver": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "database": "YOUR_DATABASE",
+    "user": "YOUR_USER",
+    "password": "YOUR_PASSWORD",
+    "max": 10,
+    "connectionLimit": 10
+  },
+  "google": {
+    "auth_type": "oauth",
+    "oauth_client_id": "",
+    "oauth_client_secret": "",
+    "oauth_refresh_token": "",
+    "service_account_file": "../../../anki_image_generator/account_service.json",
+    "sheets_scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "drive_scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ]
+  },
+  "facebook": {
+    "graph_api_base": "https://graph.facebook.com",
+    "graph_api_version": "v26.0",
+    "page_id": "YOUR_FACEBOOK_PAGE_ID",
+    "access_token": "",
+    "timeout_seconds": 120,
+    "comment_fields": "id,message,from,created_time"
+  },
+  "youtube": {
+    "auth_type": "oauth",
+    "oauth_client_id": "",
+    "oauth_client_secret": "",
+    "oauth_refresh_token": "",
+    "scopes": [
+      "https://www.googleapis.com/auth/youtube.upload"
+    ],
+    "category_id": "22",
+    "privacy_status": "private",
+    "upload_parts": "snippet,status"
+  },
+  "ai": {
+    "chat": {
+      "base_url": "https://your-chat-api.example/v1",
+      "endpoint": "/chat/completions",
+      "model": "YOUR_CHAT_MODEL",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120
+    },
+    "image": {
+      "base_url": "https://your-image-api.example/v1",
+      "endpoint": "/images/generations",
+      "model": "YOUR_IMAGE_MODEL",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120,
+      "model_field": "model",
+      "prompt_field": "prompt",
+      "data_field": "data",
+      "base64_response_field": "b64_json",
+      "url_response_field": "url",
+      "request_options": {
+        "size": "1024x1024",
+        "response_format": "b64_json"
+      }
+    },
+    "video": {
+      "base_url": "https://your-video-api.example/v1",
+      "endpoint": "/videos",
+      "status_endpoint": "/videos/{task_id}",
+      "model": "YOUR_VIDEO_MODEL",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120,
+      "poll_interval_seconds": 5,
+      "poll_timeout_seconds": 900,
+      "task_id_field": "id",
+      "status_field": "status",
+      "success_values": ["succeeded", "completed"],
+      "failure_values": ["failed", "error"],
+      "request_options": {
+        "duration": 5
+      }
+    },
+    "audio": {
+      "base_url": "https://your-audio-api.example/v1",
+      "endpoint": "/audio/speech",
+      "model": "YOUR_AUDIO_MODEL",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120,
+      "model_field": "model",
+      "text_field": "input",
+      "response_type": "bytes",
+      "base64_response_field": "audio",
+      "request_options": {
+        "response_format": "mp3"
+      }
+    }
+  },
+  "logger": {
+    "level": "INFO",
+    "file": "logs/common-tools.log",
+    "console": true,
+    "format": "%(asctime)s %(levelname)s %(name)s: %(message)s"
+  }
+}

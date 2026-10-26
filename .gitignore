@@ -1,0 +1,10 @@
+# Local configuration and credentials
+**/config.json
+**/account_service.json
+**/client.json
+
+# Dependencies and generated files
+**/node_modules/
+**/__pycache__/
+**/*.py[cod]
+**/logs/
