@@ -1,60 +1,60 @@
 # Run from repository root. Replace YOUR_* values with real IDs/paths.
 # Set config once per command with --config; omit it to use
-# COMMON_TOOLS_CONFIG or common/tools/python/config.json.
+# COMMON_TOOLS_CONFIG or python/config.json.
 #
 # Show all direct CLI commands:
-# python common/tools/python/cli.py --help
-# python common/tools/python/cli.py sheets-read --help
+# python python/cli.py --help
+# python python/cli.py sheets-read --help
 #
 # Run automated local tests:
 # python -m unittest common.tools.python.test_tools
-# cd common/tools/ts && npm run typecheck && npm test
+# cd ts && npm run typecheck && npm test
 #
 # Logger (local only):
-# python common/tools/python/cli.py --config common/tools/python/config.json log --message "test log" --name manual-test
+# python python/cli.py --config python/config.json log --message "test log" --name manual-test
 #
 # AI chat (provider API request):
-# python common/tools/python/cli.py --config common/tools/python/config.json ai-call --service chat --endpoint /chat/completions --payload '{"model":"YOUR_CHAT_MODEL","messages":[{"role":"user","content":"Reply OK"}]}'
+# python python/cli.py --config python/config.json ai-call --service chat --endpoint /chat/completions --payload '{"model":"YOUR_CHAT_MODEL","messages":[{"role":"user","content":"Reply OK"}]}'
 #
 # AI image/audio/video (may incur provider cost):
-# python common/tools/python/cli.py --config common/tools/python/config.json ai-image --prompt "red apple on white background" --output output/test.png
-# python common/tools/python/cli.py --config common/tools/python/config.json ai-audio --text "This is a test" --output output/test.mp3
-# python common/tools/python/cli.py --config common/tools/python/config.json ai-video --prompt "sunrise over ocean"
+# python python/cli.py --config python/config.json ai-image --prompt "red apple on white background" --output output/test.png
+# python python/cli.py --config python/config.json ai-audio --text "This is a test" --output output/test.mp3
+# python python/cli.py --config python/config.json ai-video --prompt "sunrise over ocean"
 #
 # Facebook comments (read-only):
-# python common/tools/python/cli.py --config common/tools/python/config.json facebook-comments --object-id YOUR_POST_OR_VIDEO_ID --limit 5
-# python common/tools/python/cli.py --config common/tools/python/config.json facebook-comments --object-id YOUR_POST_OR_VIDEO_ID --all-pages
+# python python/cli.py --config python/config.json facebook-comments --object-id YOUR_POST_OR_VIDEO_ID --limit 5
+# python python/cli.py --config python/config.json facebook-comments --object-id YOUR_POST_OR_VIDEO_ID --all-pages
 #
 # Facebook comment and video upload (publishes to Page):
-# python common/tools/python/cli.py --config common/tools/python/config.json facebook-comment --object-id YOUR_POST_OR_VIDEO_ID --message "Manual tools test"
-# python common/tools/python/cli.py --config common/tools/python/config.json facebook-upload-video --video output/test.mp4 --description "Manual tools test"
+# python python/cli.py --config python/config.json facebook-comment --object-id YOUR_POST_OR_VIDEO_ID --message "Manual tools test"
+# python python/cli.py --config python/config.json facebook-upload-video --video output/test.mp4 --description "Manual tools test"
 #
 # Google Sheets read (read-only):
-# python common/tools/python/cli.py --config common/tools/python/config.json sheets-read --spreadsheet-id YOUR_SPREADSHEET_ID --range 'Sheet1!A1:C5'
+# python python/cli.py --config python/config.json sheets-read --spreadsheet-id YOUR_SPREADSHEET_ID --range 'Sheet1!A1:C5'
 #
 # Google Sheets write (modifies selected cells):
-# python common/tools/python/cli.py --config common/tools/python/config.json sheets-write --spreadsheet-id YOUR_SPREADSHEET_ID --range 'Sheet1!A1:B2' --values '[["test","value"],["manual test",1]]'
+# python python/cli.py --config python/config.json sheets-write --spreadsheet-id YOUR_SPREADSHEET_ID --range 'Sheet1!A1:B2' --values '[["test","value"],["manual test",1]]'
 #
 # Google Drive upload/download (upload creates a remote file):
-# python common/tools/python/cli.py --config common/tools/python/config.json drive-upload --file output/test.png --folder-id YOUR_DRIVE_FOLDER_ID
-# python common/tools/python/cli.py --config common/tools/python/config.json drive-download --file-id YOUR_DRIVE_FILE_ID --output output/downloaded-file
+# python python/cli.py --config python/config.json drive-upload --file output/test.png --folder-id YOUR_DRIVE_FOLDER_ID
+# python python/cli.py --config python/config.json drive-download --file-id YOUR_DRIVE_FILE_ID --output output/downloaded-file
 #
 # Anki tools (AnkiConnect must be running; delete is permanent):
-# python common/tools/python/cli.py anki-sync --timeout 300
-# python common/tools/python/cli.py anki-notes-list --query 'deck:Default' --limit 50
-# python common/tools/python/cli.py anki-notes-list --query ''
-# python common/tools/python/cli.py anki-note-add --deck 'Default' --note-type 'Basic' --fields '{"Front":"Question","Back":"Answer"}' --tags '["manual"]'
-# python common/tools/python/cli.py anki-note-update --note-id 1234567890 --fields '{"Back":"Updated answer"}'
-# python common/tools/python/cli.py anki-note-delete --note-id 1234567890
+# python python/cli.py anki-sync --timeout 300
+# python python/cli.py anki-notes-list --query 'deck:Default' --limit 50
+# python python/cli.py anki-notes-list --query ''
+# python python/cli.py anki-note-add --deck 'Default' --note-type 'Basic' --fields '{"Front":"Question","Back":"Answer"}' --tags '["manual"]'
+# python python/cli.py anki-note-update --note-id 1234567890 --fields '{"Back":"Updated answer"}'
+# python python/cli.py anki-note-delete --note-id 1234567890
 #
 # Local video tools (requires ffmpeg; HTML capture also requires Playwright + Chromium):
-# python common/tools/python/cli.py video-concat --input output/part-1.mp4 --input output/part-2.mp4 --output output/combined.mp4
-# python common/tools/python/cli.py video-concat --input output/part-1.mp4 --input output/part-2.mp4 --output output/combined.mp4 --reencode
-# python common/tools/python/cli.py html-to-video --html output/page.html --output output/page.mp4 --duration 8 --fps 30 --width 1080 --height 1920
+# python python/cli.py video-concat --input output/part-1.mp4 --input output/part-2.mp4 --output output/combined.mp4
+# python python/cli.py video-concat --input output/part-1.mp4 --input output/part-2.mp4 --output output/combined.mp4 --reencode
+# python python/cli.py html-to-video --html output/page.html --output output/page.mp4 --duration 8 --fps 30 --width 1080 --height 1920
 # python -m playwright install chromium
 #
 # YouTube upload (publishes video; set youtube.privacy_status to private for testing):
-# python common/tools/python/cli.py --config common/tools/python/config.json youtube-upload --video output/test.mp4 --title "Manual tools test" --description "Test upload"
+# python python/cli.py --config python/config.json youtube-upload --video output/test.mp4 --title "Manual tools test" --description "Test upload"
 #
 # All command options accept caller-provided values; use each command's --help
-# for optional flags. TypeScript functions have examples in common/tools/README.md.
+# for optional flags. TypeScript functions have examples in README.md.

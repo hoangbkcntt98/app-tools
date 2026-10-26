@@ -11,9 +11,9 @@
   },
   "google": {
     "auth_type": "oauth",
-    "oauth_client_file": "../../../video_generator/client.json",
-    "token_file": "../../../video_generator/token.json",
-    "service_account_file": "../../../anki_image_generator/account_service.json",
+    "oauth_client_file": "../client.json",
+    "token_file": "../token.json",
+    "service_account_file": "../account_service.json",
     "oauth_port": 0,
     "oauth_timeout_seconds": 300,
     "scopes": [],
@@ -44,7 +44,7 @@
   },
   "youtube": {
     "auth_type": "oauth",
-    "oauth_client_file": "../../../video_generator/client.json",
+    "oauth_client_file": "../client.json",
     "token_file": "youtube_token.json",
     "scopes": [
       "https://www.googleapis.com/auth/youtube.upload"

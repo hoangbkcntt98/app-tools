@@ -12,10 +12,17 @@ direct config values such as `ai.chat.api_key` and
 `facebook.access_token`. These config files are ignored by Git. Explicit
 function arguments override matching config values.
 
+Before running, install and configure both required services:
+
+- [AnkiConnect](https://github.com/hoangbkcntt98/anki-connect-server)
+- [Muse2API](https://github.com/hoangbkcntt98/muse2api)
+
 Install integrations:
 
 ```bash
-python -m pip install -r common/tools/python/requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r python/requirements.txt
 ```
 
 Google OAuth credential and token paths resolve relative to the selected config
@@ -23,12 +30,12 @@ file. Service account auth works where Google API supports it; grant account
 access to target Sheets and Drive files. Python imports use
 `common.tools.python.*`; set `COMMON_TOOLS_CONFIG` or pass `config=...`.
 
-Run Python tools directly with `common/tools/python/cli.py`. Command examples
-for each integration live in `common/tools/tools.test.txt`.
+Run Python tools directly with `python/cli.py`. Command examples
+for each integration live in `tools.test.txt`.
 
 ```bash
-python common/tools/python/cli.py --help
-python common/tools/python/cli.py --config common/tools/python/config.json \
+python python/cli.py --help
+python python/cli.py --config python/config.json \
   sheets-read --spreadsheet-id SPREADSHEET_ID --range 'Sheet1!A1:C5'
 ```
 
@@ -41,7 +48,7 @@ pass Page ID to an operation.
 ```python
 from common.tools.python.facebook import FacebookTool
 
-facebook = FacebookTool("common/tools/python/config.json")
+facebook = FacebookTool("python/config.json")
 
 # Read one page of comments, or follow all API pages with page_all=True.
 comments = facebook.get_comments(
@@ -76,11 +83,11 @@ is Unix seconds (UTC); scheduling sends the Page post/photo/video unpublished
 for Facebook to publish at that time. CLI also accepts ISO-8601 with explicit timezone:
 
 ```bash
-python common/tools/python/cli.py --config common/tools/python/config.json facebook-post \
+python python/cli.py --config python/config.json facebook-post \
   --message "Scheduled post" --publish-at 2026-10-27T09:00:00Z
-python common/tools/python/cli.py --config common/tools/python/config.json facebook-post \
+python python/cli.py --config python/config.json facebook-post \
   --message "Scheduled photo" --image output/image.jpg --publish-at 2026-10-27T09:00:00Z
-python common/tools/python/cli.py --config common/tools/python/config.json facebook-upload-video \
+python python/cli.py --config python/config.json facebook-upload-video \
   --video output/video.mp4 --description "Scheduled video" --publish-at 2026-10-27T09:00:00Z
 ```
 
@@ -95,7 +102,7 @@ conditions to avoid accidental full-table changes.
 ```python
 from common.tools.python.database import create_database_pool
 
-db = create_database_pool("common/tools/python/config.json")
+db = create_database_pool("python/config.json")
 try:
     db.insert("users", {"name": "Ada"})
     rows = db.select("users", where={"active": True}, limit=50)
@@ -122,7 +129,7 @@ from common.tools.python.google import (
     write_spreadsheet,
 )
 
-config = "common/tools/python/config.json"
+config = "python/config.json"
 
 # Read every tab, or request specific ranges with ranges=["Tab!A1:C20"].
 sheet = read_spreadsheet("SPREADSHEET_ID", config=config)
@@ -163,11 +170,11 @@ timeout; AnkiWeb credentials must already be configured in Anki. Create/update
 fields use JSON objects; deletion is permanent and takes explicit note IDs.
 
 ```bash
-python common/tools/python/cli.py anki-sync --timeout 300
-python common/tools/python/cli.py anki-notes-list --query 'deck:Default' --limit 50
-python common/tools/python/cli.py anki-note-add --deck 'Default' --note-type 'Basic' --fields '{"Front":"Question","Back":"Answer"}' --tags '["manual"]'
-python common/tools/python/cli.py anki-note-update --note-id 1234567890 --fields '{"Back":"Updated answer"}'
-python common/tools/python/cli.py anki-note-delete --note-id 1234567890
+python python/cli.py anki-sync --timeout 300
+python python/cli.py anki-notes-list --query 'deck:Default' --limit 50
+python python/cli.py anki-note-add --deck 'Default' --note-type 'Basic' --fields '{"Front":"Question","Back":"Answer"}' --tags '["manual"]'
+python python/cli.py anki-note-update --note-id 1234567890 --fields '{"Back":"Updated answer"}'
+python python/cli.py anki-note-delete --note-id 1234567890
 ```
 
 ## Local video tools
@@ -178,21 +185,21 @@ TypeScript exports equivalent `concatenateVideos(...)` and `htmlToVideo(...)`
 functions from `./src/video.js`.
 
 ```bash
-python common/tools/python/cli.py video-concat \\
+python python/cli.py video-concat \\
   --input clip-1.mp4 --input clip-2.mp4 --output output/combined.mp4
-python common/tools/python/cli.py video-concat \\
+python python/cli.py video-concat \\
   --input clip-1.mp4 --input clip-2.mp4 --output output/combined.mp4 --reencode
 ```
 
 `html-to-video` captures a local HTML page as MP4 using headless Chromium and
 ffmpeg. Install Python dependency plus browser with `python -m pip install -r
-common/tools/python/requirements.txt && python -m playwright install chromium`. Page
+python/requirements.txt && python -m playwright install chromium`. Page
 animation runs while screenshots are captured; defaults are 5 seconds, 30 fps,
 and portrait 1080x1920.
 For TypeScript, install the browser with `npx playwright install chromium`.
 
 ```bash
-python common/tools/python/cli.py html-to-video \\
+python python/cli.py html-to-video \\
   --html page.html --output output/page.mp4 --duration 8 --fps 30 --width 1080 --height 1920
 ```
 
@@ -212,7 +219,7 @@ result = upload_video(
     tags=["tag-one", "tag-two"],
     category_id="22",
     privacy_status="private",
-    config="common/tools/python/config.json",
+    config="python/config.json",
 )
 video_id = result["id"]
 ```
@@ -232,7 +239,7 @@ join against that service's base URL; absolute endpoint URLs override it.
 from pathlib import Path
 from common.tools.python.ai import call_api, text_to_audio, text_to_image, text_to_video
 
-config = "common/tools/python/config.json"
+config = "python/config.json"
 
 # Generic request. `service` selects auth, timeout, and base URL section.
 chat_response = call_api(
@@ -267,11 +274,11 @@ console, format, and propagation. `log` writes one message using same settings.
 ```python
 from common.tools.python.logger import get_logger, log
 
-logger = get_logger("my_tool", "common/tools/python/config.json")
+logger = get_logger("my_tool", "python/config.json")
 logger.info("Started")
 logger.error("Failed")
 
-log("Completed", name="my_tool", level="INFO", config="common/tools/python/config.json")
+log("Completed", name="my_tool", level="INFO", config="python/config.json")
 ```
 
 Set `logger.file` to `null` to disable file output, or use `console` to enable
@@ -285,12 +292,12 @@ YouTube upload; AI API, image, audio, video; local video processing; and logging
 Run from repository root:
 
 ```bash
-cd common/tools/ts
+cd ts
 npm install
 npm run typecheck
 ```
 
-Copy `common/tools/ts/config.example.json` to `common/tools/ts/config.json`.
+Copy `ts/config.example.json` to `ts/config.json`.
 Set `COMMON_TOOLS_TS_CONFIG` to select another config file. Set AI credentials
 in per-service `api_key` fields. Google OAuth credentials use direct config
 fields `oauth_client_id`, `oauth_client_secret`, and `oauth_refresh_token`;
