@@ -182,10 +182,11 @@ def download_drive_file(
     file_id: str,
     destination: str | Path,
     *,
+    mime_type: str | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
     service: Any = None,
 ) -> Path:
-    """Download a Drive file by ID into the caller-selected destination."""
+    """Download a Drive file or export a Google Docs Editor file."""
     if not file_id:
         raise ValueError("file_id is required")
     settings = section_config(config, "google")
@@ -204,10 +205,38 @@ def download_drive_file(
         raise RuntimeError("Google API client package is required for Drive downloads") from exc
     import io
 
-    request = service.files().get_media(
-        fileId=file_id,
-        supportsAllDrives=bool(settings.get("supports_all_drives", True)),
+    supports_all_drives = bool(settings.get("supports_all_drives", True))
+    file_info = (
+        service.files()
+        .get(
+            fileId=file_id,
+            supportsAllDrives=supports_all_drives,
+            fields="mimeType",
+        )
+        .execute()
     )
+    file_mime_type = str(file_info.get("mimeType", ""))
+    if file_mime_type.startswith("application/vnd.google-apps."):
+        default_exports = {
+            "application/vnd.google-apps.document":
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.google-apps.spreadsheet":
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.google-apps.presentation":
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.google-apps.drawing": "application/pdf",
+        }
+        export_type = mime_type or default_exports.get(file_mime_type)
+        if not export_type:
+            raise ValueError(
+                f"Google Drive file type {file_mime_type!r} needs an explicit export MIME type"
+            )
+        request = service.files().export(fileId=file_id, mimeType=export_type)
+    else:
+        request = service.files().get_media(
+            fileId=file_id,
+            supportsAllDrives=supports_all_drives,
+        )
     buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(buffer, request)
     done = False

@@ -102,6 +102,10 @@ def _build_parser() -> argparse.ArgumentParser:
     command = commands.add_parser("drive-download", help="Download Drive file")
     command.add_argument("--file-id", required=True)
     command.add_argument("--output", required=True)
+    command.add_argument(
+        "--mime-type",
+        help="Export MIME type for Google Docs, Sheets, or Slides files",
+    )
 
     command = commands.add_parser("anki-sync", help="Sync Anki collection with AnkiWeb")
     command.add_argument("--api-url")
@@ -299,7 +303,12 @@ def main() -> None:
                 config=config,
             )
         else:
-            result = download_drive_file(args.file_id, args.output, config=config)
+            result = download_drive_file(
+                args.file_id,
+                args.output,
+                mime_type=args.mime_type,
+                config=config,
+            )
         _print(result)
         return
 

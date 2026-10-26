@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,7 +11,7 @@ from unittest.mock import MagicMock, patch
 from python.ai import call_api, text_to_audio, text_to_image, text_to_video
 from python.database import DatabasePool
 from python.facebook import FacebookTool
-from python.google import read_spreadsheet, write_spreadsheet
+from python.google import download_drive_file, read_spreadsheet, write_spreadsheet
 from python.logger import get_logger, log
 from python.config import DEFAULT_CONFIG_PATH
 
@@ -66,6 +68,44 @@ class TestToolConfigAndLogger(unittest.TestCase):
 
 
 class TestGoogleTools(unittest.TestCase):
+    def test_download_exports_google_docs_to_docx(self):
+        service = MagicMock()
+        service.files.return_value.get.return_value.execute.return_value = {
+            "mimeType": "application/vnd.google-apps.document"
+        }
+
+        def create_downloader(buffer, _request):
+            class Downloader:
+                def next_chunk(self):
+                    buffer.write(b"docx-data")
+                    return None, True
+
+            return Downloader()
+
+        downloader_class = MagicMock(side_effect=create_downloader)
+        api_module = types.ModuleType("googleapiclient")
+        api_module.__path__ = []
+        http_module = types.ModuleType("googleapiclient.http")
+        http_module.MediaIoBaseDownload = downloader_class
+        modules = {
+            "googleapiclient": api_module,
+            "googleapiclient.http": http_module,
+        }
+        with patch.dict(sys.modules, modules), tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "download.docx"
+            result = download_drive_file(
+                "doc-id",
+                output,
+                config={"google": {"supports_all_drives": True}},
+                service=service,
+            )
+            self.assertEqual(result, output)
+            self.assertEqual(output.read_bytes(), b"docx-data")
+        service.files.return_value.export.assert_called_once_with(
+            fileId="doc-id",
+            mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
     def test_reads_requested_ranges_and_sheet_title(self):
         service = MagicMock()
         service.spreadsheets.return_value.get.return_value.execute.return_value = {
