@@ -291,32 +291,35 @@ def _save_video(
     if not isinstance(item, Mapping):
         item = response
 
-    encoded = item.get(str(settings.get("base64_response_field", "video")))
+    encoded_field = str(settings.get("base64_response_field", "video"))
+    url_field = str(settings.get("url_response_field", "url"))
+    encoded = item.get(encoded_field)
     nested_result = response.get("result")
     if not encoded and isinstance(nested_result, Mapping):
         item = nested_result
-        encoded = item.get(str(settings.get("base64_response_field", "video")))
+        encoded = item.get(encoded_field)
     video_bytes: bytes | None = None
-    video_url = None
+    video_url = _find_video_url(
+        response,
+        url_fields=(url_field, "url", "video_url", "download_url", "output_url"),
+    )
     if encoded:
-        encoded = str(encoded)
-        if encoded.startswith("data:") and "," in encoded:
-            encoded = encoded.split(",", 1)[1]
-        try:
-            video_bytes = base64.b64decode(encoded, validate=True)
-        except (binascii.Error, ValueError):
-            if _looks_like_video_url(encoded):
-                video_url = encoded
-            else:
-                raise RuntimeError(
-                    "Video API base64 field is not valid base64; configure "
-                    "ai.video.url_response_field if this field contains a URL"
-                ) from None
+        if isinstance(encoded, str):
+            if encoded.startswith("data:") and "," in encoded:
+                encoded = encoded.split(",", 1)[1]
+            try:
+                video_bytes = base64.b64decode(encoded, validate=True)
+            except (binascii.Error, ValueError):
+                if _looks_like_video_url(encoded):
+                    video_url = video_url or encoded
     if video_bytes is None:
-        video_url = video_url or item.get(str(settings.get("url_response_field", "url")))
-        if not video_url and isinstance(nested_result, Mapping):
-            video_url = nested_result.get(str(settings.get("url_response_field", "url")))
         if not video_url:
+            if encoded:
+                raise RuntimeError(
+                    "Video API response field "
+                    f"{encoded_field!r} is neither valid base64 nor a video URL; "
+                    "configure ai.video.url_response_field to match the response"
+                )
             raise RuntimeError(
                 "Video API response must contain base64 data or a video URL to save with --output"
             )
@@ -349,3 +352,22 @@ def _looks_like_video_url(value: str) -> bool:
         or ("/" in value and not any(character.isspace() for character in value))
         or Path(parsed.path).suffix.lower() in {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
     )
+
+
+def _find_video_url(value: Any, *, url_fields: tuple[str, ...]) -> str | None:
+    """Find a downloadable video URL in common nested provider response shapes."""
+    if isinstance(value, Mapping):
+        for field in url_fields:
+            candidate = value.get(field)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+        for candidate in value.values():
+            found = _find_video_url(candidate, url_fields=url_fields)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for candidate in value:
+            found = _find_video_url(candidate, url_fields=url_fields)
+            if found:
+                return found
+    return None

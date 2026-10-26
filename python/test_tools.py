@@ -485,5 +485,35 @@ class TestAITools(unittest.TestCase):
                 "m2a-test",
             )
 
+    @patch("python.ai.time.sleep")
+    @patch("python.ai.call_api")
+    def test_text_to_video_finds_url_inside_video_field(self, call, _sleep):
+        call.side_effect = [
+            {"id": "job-1"},
+            {"status": "succeeded", "video": {"url": "/v1/media/job-1.mp4"}},
+            b"video",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "video.mp4"
+            text_to_video(
+                "A kitten walking",
+                output=output,
+                config={
+                    "ai": {
+                        "video": {
+                            "base_url": "http://example.test/v1",
+                            "endpoint": "/videos",
+                            "status_endpoint": "/videos/{task_id}",
+                            "poll_interval_seconds": 0,
+                        }
+                    }
+                },
+            )
+            self.assertEqual(output.read_bytes(), b"video")
+            self.assertEqual(
+                call.call_args_list[2].args[0],
+                "http://example.test/v1/media/job-1.mp4",
+            )
+
 if __name__ == "__main__":
     unittest.main()
