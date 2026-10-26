@@ -449,5 +449,41 @@ class TestAITools(unittest.TestCase):
             )
             self.assertEqual(call.call_args_list[2].kwargs["response_type"], "bytes")
 
+    @patch("python.ai.time.sleep")
+    @patch("python.ai.call_api")
+    def test_text_to_video_saves_nested_result_url(self, call, _sleep):
+        call.side_effect = [
+            {"id": "job-1"},
+            {"status": "succeeded", "result": {"url": "/v1/media/job-1.mp4"}},
+            b"video",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "video.mp4"
+            result = text_to_video(
+                "A kitten walking",
+                output=output,
+                config={
+                    "ai": {
+                        "video": {
+                            "base_url": "http://example.test/v1",
+                            "api_key": "m2a-test",
+                            "endpoint": "/videos",
+                            "status_endpoint": "/videos/{task_id}",
+                            "poll_interval_seconds": 0,
+                        }
+                    }
+                },
+            )
+            self.assertEqual(result["status"], "succeeded")
+            self.assertEqual(output.read_bytes(), b"video")
+            self.assertEqual(
+                call.call_args_list[2].args[0],
+                "http://example.test/v1/media/job-1.mp4",
+            )
+            self.assertEqual(
+                call.call_args_list[2].kwargs["config"]["ai"]["video"]["api_key"],
+                "m2a-test",
+            )
+
 if __name__ == "__main__":
     unittest.main()

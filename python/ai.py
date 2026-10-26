@@ -292,6 +292,10 @@ def _save_video(
         item = response
 
     encoded = item.get(str(settings.get("base64_response_field", "video")))
+    nested_result = response.get("result")
+    if not encoded and isinstance(nested_result, Mapping):
+        item = nested_result
+        encoded = item.get(str(settings.get("base64_response_field", "video")))
     video_bytes: bytes | None = None
     video_url = None
     if encoded:
@@ -310,6 +314,8 @@ def _save_video(
                 ) from None
     if video_bytes is None:
         video_url = video_url or item.get(str(settings.get("url_response_field", "url")))
+        if not video_url and isinstance(nested_result, Mapping):
+            video_url = nested_result.get(str(settings.get("url_response_field", "url")))
         if not video_url:
             raise RuntimeError(
                 "Video API response must contain base64 data or a video URL to save with --output"
