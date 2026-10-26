@@ -21,6 +21,38 @@ from python.logger import get_logger, log
 from python.config import DEFAULT_CONFIG_PATH
 
 
+class TestAnkiCliDispatch(unittest.TestCase):
+    def test_notes_list_and_sync_commands_dispatch(self):
+        calls = []
+
+        class FakeAnkiConnector:
+            def __init__(self, api_url):
+                calls.append(("init", api_url))
+
+            def list_notes(self, query, limit):
+                calls.append(("list_notes", query, limit))
+                return [{"id": 1}]
+
+            def sync(self, timeout):
+                calls.append(("sync", timeout))
+                return {"status": "complete"}
+
+        from python.cli import main
+
+        with patch("python.anki_client.AnkiConnector", FakeAnkiConnector), patch(
+            "sys.argv",
+            ["cli", "anki-notes-list", "--query", "deck:Default", "--limit", "50"],
+        ):
+            main()
+        with patch("python.anki_client.AnkiConnector", FakeAnkiConnector), patch(
+            "sys.argv", ["cli", "anki-sync", "--timeout", "300"]
+        ):
+            main()
+
+        self.assertIn(("list_notes", "deck:Default", 50), calls)
+        self.assertIn(("sync", 300), calls)
+
+
 class TestDatabasePool(unittest.TestCase):
     def test_mysql_crud_quotes_identifiers_and_binds_values(self):
         cursor = MagicMock()

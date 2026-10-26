@@ -314,8 +314,8 @@ def main() -> None:
         _print(result)
         return
 
-    if args.command.startswith("anki-note-"):
-        from anki_image_generator.services.anki_connector import AnkiConnector
+    if args.command == "anki-sync" or args.command.startswith("anki-note"):
+        from python.anki_client import AnkiConnector
 
         anki_settings = {}
         if config:
@@ -323,8 +323,10 @@ def main() -> None:
             anki_settings = section_config(config, "anki")
         connector = AnkiConnector(api_url=args.api_url or anki_settings.get("api_url", "http://127.0.0.1:8765"))
         if args.command == "anki-sync":
+            print("Syncing Anki collection with AnkiWeb...", file=sys.stderr, flush=True)
             result = connector.sync(timeout=args.timeout)
         elif args.command == "anki-notes-list":
+            print("Loading Anki notes...", file=sys.stderr, flush=True)
             result = connector.list_notes(query=args.query, limit=args.limit)
         elif args.command == "anki-note-add":
             if not isinstance(args.fields, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in args.fields.items()):
