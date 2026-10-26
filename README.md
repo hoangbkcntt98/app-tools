@@ -41,9 +41,23 @@ python python/cli.py --config config.json \
 
 ## Facebook
 
-`FacebookTool` reads settings from `facebook` in config. Put Page access token
-in `access_token`; set Page ID, Graph API base URL, and version in config or
-pass Page ID to an operation.
+### Prerequisites
+
+Install Python dependencies. Configure Facebook Graph API version, Page ID,
+and Page access token in `facebook`; token needs permissions for target Page.
+
+### Input parameters
+
+Operations take post/video object ID and message for comments; message, optional
+image, or local video path for publishing. Video upload also accepts title,
+description, Page ID, and optional future `--publish-at` timestamp.
+
+### Usage
+
+#### Python import
+
+`FacebookTool` reads settings from `facebook` in config. Per-call arguments
+override matching config values.
 
 ```python
 from python.facebook import FacebookTool
@@ -78,9 +92,13 @@ upload = facebook.upload_video(
 
 `page_id`, `description`, `title`, `fields`, `limit`, and extra upload fields
 can be passed per call. Module-level `get_comments(...)` and `upload_video(...)`
-wrappers accept `config=` and the same operation arguments. `scheduled_publish_time`
-is Unix seconds (UTC); scheduling sends the Page post/photo/video unpublished
-for Facebook to publish at that time. CLI also accepts ISO-8601 with explicit timezone:
+wrappers accept `config=` and the same operation arguments.
+
+#### Command line
+
+`scheduled_publish_time` in Python is Unix seconds (UTC). CLI `--publish-at`
+requires a future ISO-8601 time with timezone. Scheduling asks Facebook to
+publish the Page post/photo/video at that time.
 
 ```bash
 python python/cli.py --config config.json facebook-post \
@@ -89,15 +107,36 @@ python python/cli.py --config config.json facebook-post \
   --message "Scheduled photo" --image output/image.jpg --publish-at 2026-10-27T09:00:00Z
 python python/cli.py --config config.json facebook-upload-video \
   --video output/video.mp4 --description "Scheduled video" --publish-at 2026-10-27T09:00:00Z
+python python/cli.py --config config.json facebook-comments \
+  --object-id POST_OR_VIDEO_ID --limit 50 --all-pages
+python python/cli.py --config config.json facebook-comment \
+  --object-id POST_OR_VIDEO_ID --message "Comment text"
 ```
 
 ## Databases
+
+### Prerequisites
+
+Configure `database.driver` as `postgresql` or `mysql`, plus connection settings.
+Install `psycopg[binary,pool]` for PostgreSQL or `mysql-connector-python` for
+MySQL. TypeScript requires `pg` or `mysql2`.
+
+### Input parameters
+
+Pass table/column names, values, filters, and optional select limit to database
+methods. Update/delete require non-empty `where` conditions.
+
+### Usage
+
+#### Python import
 
 Python and TypeScript database tools create PostgreSQL or MySQL connection pools
 and provide parameterized `select`, `insert`, `update`, and `delete` operations.
 Set `database.driver` to `postgresql` or `mysql` in config. Both implementations
 validate and quote table/column identifiers; update and delete require non-empty
 conditions to avoid accidental full-table changes.
+
+No database CLI command is currently provided.
 
 ```python
 from python.database import create_database_pool
@@ -118,8 +157,26 @@ Set database credentials through config or environment-specific config files.
 
 ## Google Sheets and Drive
 
-Functions use Google credentials configured in `google`. IDs, ranges, paths, and
-cell contents are function arguments.
+### Prerequisites
+
+Configure Google API credentials under `google`. OAuth needs `client.json` and
+creates `token.json`; service-account auth needs a service-account JSON file
+such as `account_service.json`. Enable Sheets/Drive APIs. Share target Sheets
+and Drive files/folders with service account email when using service-account
+auth. Configure `sheets_scopes` and `drive_scopes`.
+
+### Input parameters
+
+Sheets operations take spreadsheet ID, A1 ranges, values, and optional input
+mode. Drive upload takes local file and folder ID; download takes file ID or
+sharing URL, output path, and optional export MIME type.
+
+### Usage
+
+#### Python import
+
+Functions use credentials configured in `google`. IDs, ranges, paths, and cell
+contents are function arguments.
 
 ```python
 from python.google import (
@@ -161,15 +218,45 @@ values. `write_spreadsheet` returns Google API update metadata.
 the destination `Path`. Drive uploads/downloads support shared drives according
 to `google.supports_all_drives`.
 
-## Anki notes
-
-These commands use AnkiConnect (Anki open and AnkiConnect available). Set
-`anki.api_url` in config or pass `--api-url`. Listing supports Anki search
-queries and optional limit. Sync runs AnkiConnect `sync` with configurable
-timeout; AnkiWeb credentials must already be configured in Anki. Create/update
-fields use JSON objects; deletion is permanent and takes explicit note IDs.
+#### Command line
 
 ```bash
+python python/cli.py --config config.json sheets-read \
+  --spreadsheet-id SPREADSHEET_ID --range 'Sheet1!A1:C5'
+python python/cli.py --config config.json sheets-write \
+  --spreadsheet-id SPREADSHEET_ID --range 'Sheet1!A1:B2' \
+  --values '[["Name","Value"],["one",1]]'
+python python/cli.py --config config.json drive-upload \
+  --file output/report.csv --folder-id DRIVE_FOLDER_ID
+python python/cli.py --config config.json drive-download \
+  --url 'https://drive.google.com/file/d/FILE_ID/view' \
+  --output downloads/file.bin
+```
+
+For Google Docs, Sheets, or Slides files, `drive-download` exports to a default
+office format. Pass `--mime-type` to choose another supported export format.
+
+## Anki notes
+
+### Prerequisites
+
+Install and run Anki with AnkiConnect available. Set `anki.api_url` in config
+or pass `--api-url`. Configure AnkiWeb credentials in Anki before sync.
+
+### Input parameters
+
+Listing takes an Anki search query and optional limit. Add takes deck, note
+type, JSON fields, and optional JSON tags. Update takes note ID and JSON fields.
+Delete takes one or more note IDs and is permanent. Sync accepts timeout.
+
+### Usage
+
+#### Command line
+
+```bash
+#start anki connect server
+./anki_connect_server.sh start
+
 python python/cli.py anki-sync --timeout 300
 python python/cli.py anki-notes-list --query 'deck:Default' --limit 50
 python python/cli.py anki-note-add --deck 'Default' --note-type 'Basic' --fields '{"Front":"Question","Back":"Answer"}' --tags '["manual"]'
@@ -177,33 +264,76 @@ python python/cli.py anki-note-update --note-id 1234567890 --fields '{"Back":"Up
 python python/cli.py anki-note-delete --note-id 1234567890
 ```
 
+There is no standalone Python notes API exposed; use AnkiConnect command-line
+tools above.
+
 ## Local video tools
+
+### Prerequisites
+
+Install `ffmpeg` and ensure it is on PATH. `html-to-video` also needs Playwright
+and Chromium (`python -m pip install -r python/requirements.txt` and
+`python -m playwright install chromium`).
+
+### Input parameters
+
+`video-concat` takes ordered input clips, output path, and optional `--reencode`.
+`html-to-video` takes HTML path, output path, duration, FPS, dimensions, and
+optional start delay.
+
+### Usage
+
+#### Command line
 
 `video-concat` joins video clips in the order supplied. Stream-copy is default; use
 `--reencode` when source formats differ. Requires `ffmpeg` on PATH.
-TypeScript exports equivalent `concatenateVideos(...)` and `htmlToVideo(...)`
-functions from `./src/video.js`.
 
 ```bash
-python python/cli.py video-concat \\
+python python/cli.py video-concat \
   --input clip-1.mp4 --input clip-2.mp4 --output output/combined.mp4
-python python/cli.py video-concat \\
+python python/cli.py video-concat \
   --input clip-1.mp4 --input clip-2.mp4 --output output/combined.mp4 --reencode
 ```
 
 `html-to-video` captures a local HTML page as MP4 using headless Chromium and
-ffmpeg. Install Python dependency plus browser with `python -m pip install -r
-python/requirements.txt && python -m playwright install chromium`. Page
-animation runs while screenshots are captured; defaults are 5 seconds, 30 fps,
-and portrait 1080x1920.
-For TypeScript, install the browser with `npx playwright install chromium`.
+ffmpeg. Page animation runs while screenshots are captured; defaults are 5
+seconds, 30 fps, and portrait 1080x1920.
 
 ```bash
-python python/cli.py html-to-video \\
+python python/cli.py html-to-video \
   --html page.html --output output/page.mp4 --duration 8 --fps 30 --width 1080 --height 1920
 ```
 
+#### Python import
+
+```python
+from python.video import concatenate_videos, html_to_video
+
+concatenate_videos(["clip-1.mp4", "clip-2.mp4"], "output/combined.mp4")
+html_to_video("page.html", "output/page.mp4", duration=8, fps=30)
+```
+
+TypeScript exports equivalent `concatenateVideos(...)` and `htmlToVideo(...)`
+functions from `./src/video.js`; install its browser with
+`npx playwright install chromium`.
+
 ## YouTube
+
+### Prerequisites
+
+Configure YouTube Data API OAuth credentials under `youtube`: OAuth client,
+token, upload scope, category ID, and privacy status. Install Google API client
+packages.
+
+### Input parameters
+
+Upload takes local video path and title. Description, tags, category ID,
+privacy status, and optional publish time can be passed per call or configured
+where supported.
+
+### Usage
+
+#### Python import
 
 Uploads use YouTube Data API OAuth credentials under `youtube` config. Set
 OAuth client file, token file, upload scope, category ID, and privacy status.
@@ -228,7 +358,31 @@ video_id = result["id"]
 `publish_at` supports scheduled publish time where YouTube API permits it.
 Upload options such as chunk size and returned API parts are configurable.
 
+#### Command line
+
+```bash
+python python/cli.py --config config.json youtube-upload \
+  --video output/video.mp4 --title "Video title" \
+  --privacy-status private --publish-at 2026-10-27T09:00:00Z
+```
+
 ## AI APIs
+
+### Prerequisites
+
+Configure each provider under `ai.chat`, `ai.image`, `ai.audio`, or `ai.video`
+with its base URL, API key/auth settings, and endpoint fields. Muse2API is
+required for Muse image/video generation.
+
+### Input parameters
+
+Generation commands take a prompt (`--text` for audio), optional model, JSON
+options, and optional output path. Generic `ai-call` takes service, endpoint,
+HTTP method, JSON payload/headers/params, response type, and optional output.
+
+### Usage
+
+#### Python import
 
 Each `ai.chat`, `ai.image`, `ai.video`, and `ai.audio` section can use its own
 `base_url`, `api_key`, `api_key_header`, `auth_scheme`, and `timeout_seconds`.
@@ -265,16 +419,39 @@ states, and intervals are configurable. Pass `endpoint`, `model`, and
 accepts `method`, `payload`, `headers`, `params`, and `response_type` (`json`,
 `bytes`, or `text`). For video, configure both `video.endpoint` and
 `video.status_endpoint` with `{task_id}` placeholder when polling is needed.
-Use CLI `ai-video --output output/video.mp4` to save returned video URL or
-base64 data. Configure `ai.video.url_response_field` or
+Configure `ai.video.url_response_field` or
 `ai.video.base64_response_field` when provider uses different response fields.
+CLI `ai-video --output output/video.mp4` saves returned video URL or base64 data.
+
+#### Command line
 
 ```bash
+python python/cli.py --config config.json ai-call \
+  --service chat --endpoint /chat/completions \
+  --payload '{"model":"MODEL","messages":[{"role":"user","content":"Hi"}]}'
+python python/cli.py --config config.json ai-image \
+  --prompt "A Shiba Inu in a space helmet" --output output/image.png
+python python/cli.py --config config.json ai-audio \
+  --text "Hello there" --output output/audio.mp3
 python python/cli.py --config config.json ai-video \
-  --prompt "A video prompt" --output output/video.mp4
+  --prompt "Sunrise over ocean" --output output/video.mp4
 ```
 
 ## Logging
+
+### Prerequisites
+
+Configure optional logger level, file path, console output, format, and
+propagation under `logger`.
+
+### Input parameters
+
+Pass a message and optional logger name and level. `log` supports
+`DEBUG`, `INFO`, `WARNING`, `ERROR`, and `CRITICAL`.
+
+### Usage
+
+#### Python import
 
 `get_logger` returns a standard Python logger with configured level, file,
 console, format, and propagation. `log` writes one message using same settings.
@@ -292,12 +469,21 @@ log("Completed", name="my_tool", level="INFO", config="config.json")
 Set `logger.file` to `null` to disable file output, or use `console` to enable
 console output. Relative log paths resolve from config file directory.
 
+#### Command line
+
+```bash
+python python/cli.py --config config.json log \
+  --name tools.cli --level INFO --message "Task completed"
+```
+
 ## TypeScript
+
+### Prerequisites and usage
 
 TypeScript tools mirror Python tools: Facebook Page posts/photos/videos/comments;
 Google Sheets read/write and Drive upload/download; PostgreSQL/MySQL CRUD pools;
 YouTube upload; AI API, image, audio, video; local video processing; and logging.
-Run from repository root:
+Install dependencies, then run from repository root:
 
 ```bash
 cd ts
@@ -375,6 +561,12 @@ const htmlVideo = await htmlToVideo("output/page.html", "output/page.mp4", {
 });
 await log(`Generated ${image.length} image bytes; comments: ${comments.length}`, { config });
 ```
+
+### Input parameters
+
+Pass operation-specific IDs, paths, prompts, ranges, values, or SQL data shown
+in the example calls. Optional settings use an options object; `config` accepts
+a path or loaded configuration object.
 
 Functions accept `config` object or path; API and upload methods accept service
 objects/fetch implementations for tests. `FacebookTool.create()` returns

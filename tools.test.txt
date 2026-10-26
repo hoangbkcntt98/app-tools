@@ -10,6 +10,9 @@
 # python -m unittest python.test_tools
 # cd ts && npm run typecheck && npm test
 #
+# Database unit tests (mocked; no database changes):
+# python -m unittest python.test_tools.TestDatabasePool -v
+#
 # Logger (local only):
 # python python/cli.py --config config.json log --message "test log" --name manual-test
 #
