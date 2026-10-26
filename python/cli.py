@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+PYTHON_PACKAGE_DIR = str(Path(__file__).resolve().parent)
+if PYTHON_PACKAGE_DIR in sys.path:
+    # Prevent python/google.py from shadowing Google's installed namespace.
+    sys.path.remove(PYTHON_PACKAGE_DIR)
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
