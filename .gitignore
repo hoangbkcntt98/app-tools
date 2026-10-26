@@ -3,7 +3,6 @@
 **/account_service.json
 **/client.json
 **/.env
-/vvafclient
 
 # Dependencies and generated files
 **/node_modules/
@@ -11,4 +10,5 @@
 **/*.py[cod]
 **/logs/
 output/
-token.json
+**/*.json
+!**/config.example.json
