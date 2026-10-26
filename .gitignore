@@ -12,3 +12,5 @@
 output/
 **/*.json
 !**/config.example.json
+!**/package.json
+!**/tsconfig.json
