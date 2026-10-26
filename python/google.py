@@ -72,6 +72,11 @@ def read_spreadsheet(
             for tab in metadata.get("sheets", [])
         ]
     values = []
+    render_option = (
+        str(value_render_option or "").strip()
+        or str(settings.get("value_render_option") or "").strip()
+        or "FORMATTED_VALUE"
+    )
     for range_name in requested_ranges:
         response = (
             service.spreadsheets()
@@ -79,8 +84,7 @@ def read_spreadsheet(
             .get(
                 spreadsheetId=spreadsheet_id,
                 range=range_name,
-                valueRenderOption=value_render_option
-                or settings.get("value_render_option", "FORMATTED_VALUE"),
+                valueRenderOption=render_option,
             )
             .execute()
         )
@@ -105,6 +109,11 @@ def write_spreadsheet(
     if not spreadsheet_id or not range_name:
         raise ValueError("spreadsheet_id and range_name are required")
     settings = section_config(config, "google")
+    input_option = (
+        str(value_input_option or "").strip()
+        or str(settings.get("value_input_option") or "").strip()
+        or "USER_ENTERED"
+    )
     service = service or _google_service(
         config,
         api_name="sheets",
@@ -118,8 +127,7 @@ def write_spreadsheet(
         .update(
             spreadsheetId=spreadsheet_id,
             range=range_name,
-            valueInputOption=value_input_option
-            or settings.get("value_input_option", "USER_ENTERED"),
+            valueInputOption=input_option,
             body={"values": [list(row) for row in values]},
         )
         .execute()

@@ -35,13 +35,16 @@ export async function readSpreadsheet(
     : (metadata.data.sheets ?? []).map(
         (sheet: any) => `'${String(sheet.properties.title).replaceAll("'", "''")}'`,
       );
+  const valueRenderOption =
+    String(options.valueRenderOption ?? "").trim() ||
+    String(settings.value_render_option ?? "").trim() ||
+    "FORMATTED_VALUE";
   const values = [];
   for (const range of ranges) {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range,
-      valueRenderOption:
-        options.valueRenderOption ?? settings.value_render_option ?? "FORMATTED_VALUE",
+      valueRenderOption,
     });
     values.push({
       range: response.data.range ?? range,
@@ -72,11 +75,14 @@ export async function writeSpreadsheet(
   const sheets =
     options.service ??
     (await googleService("sheets", "v4", options.config, settings.sheets_scopes));
+  const valueInputOption =
+    String(options.valueInputOption ?? "").trim() ||
+    String(settings.value_input_option ?? "").trim() ||
+    "USER_ENTERED";
   const response = await sheets.spreadsheets.values.update({
     spreadsheetId,
     range,
-    valueInputOption:
-      options.valueInputOption ?? settings.value_input_option ?? "USER_ENTERED",
+    valueInputOption,
     requestBody: { values },
   });
   return response.data;

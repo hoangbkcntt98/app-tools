@@ -76,9 +76,20 @@ class TestGoogleTools(unittest.TestCase):
             "range": "Tab!A1",
             "values": [["hello"]],
         }
-        result = read_spreadsheet("sheet-id", ranges=["Tab!A1"], service=service)
+        result = read_spreadsheet(
+            "sheet-id",
+            ranges=["Tab!A1"],
+            config={"google": {"value_render_option": ""}},
+            service=service,
+        )
         self.assertEqual(result["title"], "Test")
         self.assertEqual(result["ranges"], [{"range": "Tab!A1", "values": [["hello"]]}])
+        self.assertEqual(
+            service.spreadsheets.return_value.values.return_value.get.call_args.kwargs[
+                "valueRenderOption"
+            ],
+            "FORMATTED_VALUE",
+        )
 
     def test_writes_provided_values(self):
         service = MagicMock()
@@ -86,11 +97,16 @@ class TestGoogleTools(unittest.TestCase):
             "updatedCells": 2
         }
         result = write_spreadsheet(
-            "sheet-id", "Tab!A1", [["A", "B"]], service=service
+            "sheet-id",
+            "Tab!A1",
+            [["A", "B"]],
+            config={"google": {"value_input_option": ""}},
+            service=service,
         )
         self.assertEqual(result["updatedCells"], 2)
         call = service.spreadsheets.return_value.values.return_value.update.call_args
         self.assertEqual(call.kwargs["body"]["values"], [["A", "B"]])
+        self.assertEqual(call.kwargs["valueInputOption"], "USER_ENTERED")
 
 
 class TestFacebookTool(unittest.TestCase):
