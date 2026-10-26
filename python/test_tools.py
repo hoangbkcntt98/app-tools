@@ -6,11 +6,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from common.tools.python.ai import call_api, text_to_audio, text_to_image, text_to_video
-from common.tools.python.database import DatabasePool
-from common.tools.python.facebook import FacebookTool
-from common.tools.python.google import read_spreadsheet, write_spreadsheet
-from common.tools.python.logger import get_logger, log
+from python.ai import call_api, text_to_audio, text_to_image, text_to_video
+from python.database import DatabasePool
+from python.facebook import FacebookTool
+from python.google import read_spreadsheet, write_spreadsheet
+from python.logger import get_logger, log
+from python.config import DEFAULT_CONFIG_PATH
 
 
 class TestDatabasePool(unittest.TestCase):
@@ -38,6 +39,9 @@ class TestDatabasePool(unittest.TestCase):
 
 
 class TestToolConfigAndLogger(unittest.TestCase):
+    def test_default_config_is_repository_root_config(self):
+        self.assertEqual(DEFAULT_CONFIG_PATH, Path(__file__).resolve().parents[1] / "config.json")
+
     def test_loads_json_and_resolves_log_file_relative_to_config(self):
         with tempfile.TemporaryDirectory() as directory:
             config_path = Path(directory) / "config.json"
@@ -45,7 +49,7 @@ class TestToolConfigAndLogger(unittest.TestCase):
                 json.dumps({"logger": {"file": "logs/tool.log", "console": False}}),
                 encoding="utf-8",
             )
-            logger = get_logger("common.tools.python.test.config", config_path)
+            logger = get_logger("python.test.config", config_path)
             logger.info("configured")
             self.assertIn("configured", (Path(directory) / "logs/tool.log").read_text())
 
@@ -58,7 +62,7 @@ class TestToolConfigAndLogger(unittest.TestCase):
                 }
             }
             log("warning message", level="WARNING", config=config)
-            self.assertIn("WARNING common.tools: warning message", (Path(directory) / "tool.log").read_text())
+            self.assertIn("WARNING tools: warning message", (Path(directory) / "tool.log").read_text())
 
 
 class TestGoogleTools(unittest.TestCase):
@@ -177,7 +181,7 @@ class TestFacebookTool(unittest.TestCase):
             "scheduled_publish_time": 1_800_000_000,
         })
 
-    @patch("common.tools.python.google.download_drive_file")
+    @patch("python.google.download_drive_file")
     def test_upload_video_from_drive_url_downloads_then_removes_temp_file(self, download):
         session = MagicMock()
         response = MagicMock(ok=True)
@@ -210,7 +214,7 @@ class TestFacebookTool(unittest.TestCase):
         self.assertEqual(uploaded[1].closed, True)
         self.assertFalse(Path(download.call_args.args[1]).exists())
 
-    @patch("common.tools.python.google.download_drive_file")
+    @patch("python.google.download_drive_file")
     def test_upload_video_from_drive_url_preserves_temp_file_on_facebook_failure(self, download):
         session = MagicMock()
         response = MagicMock(ok=False, status_code=400)
@@ -267,7 +271,7 @@ class TestFacebookTool(unittest.TestCase):
 
 
 class TestAITools(unittest.TestCase):
-    @patch("common.tools.python.ai.requests.request")
+    @patch("python.ai.requests.request")
     def test_call_api_returns_json_and_uses_config_values(self, request):
         response = MagicMock()
         response.json.return_value = {"answer": 42}
@@ -287,7 +291,7 @@ class TestAITools(unittest.TestCase):
             request.call_args.kwargs["headers"]["Authorization"], "Bearer secret"
         )
 
-    @patch("common.tools.python.ai.requests.request")
+    @patch("python.ai.requests.request")
     def test_call_api_uses_chat_specific_base_url(self, request):
         response = MagicMock()
         response.json.return_value = {"choices": []}
@@ -306,7 +310,7 @@ class TestAITools(unittest.TestCase):
             "https://chat.example/v2/chat/completions",
         )
 
-    @patch("common.tools.python.ai.requests.request")
+    @patch("python.ai.requests.request")
     def test_call_api_uses_service_specific_auth_and_timeout(self, request):
         response = MagicMock()
         response.json.return_value = {"data": []}
@@ -334,7 +338,7 @@ class TestAITools(unittest.TestCase):
         self.assertEqual(request.call_args.kwargs["timeout"], 45)
         self.assertNotIn("Authorization", request.call_args.kwargs["headers"])
 
-    @patch("common.tools.python.ai.call_api", return_value={"data": [{"b64_json": "aW1hZ2U="}]})
+    @patch("python.ai.call_api", return_value={"data": [{"b64_json": "aW1hZ2U="}]})
     def test_text_to_image_uses_configured_model_and_payload(self, call):
         result = text_to_image(
             "draw",
@@ -354,7 +358,7 @@ class TestAITools(unittest.TestCase):
         self.assertEqual(payload, {"model": "model-a", "prompt": "draw"})
         self.assertEqual(call.call_args.kwargs["service"], "image")
 
-    @patch("common.tools.python.ai.call_api", return_value=b"audio")
+    @patch("python.ai.call_api", return_value=b"audio")
     def test_text_to_audio_returns_provider_bytes(self, call):
         result = text_to_audio(
             "speak",
@@ -370,8 +374,8 @@ class TestAITools(unittest.TestCase):
         )
         self.assertEqual(result, b"audio")
 
-    @patch("common.tools.python.ai.time.sleep")
-    @patch("common.tools.python.ai.call_api")
+    @patch("python.ai.time.sleep")
+    @patch("python.ai.call_api")
     def test_text_to_video_uses_configured_status_fields(self, call, _sleep):
         call.side_effect = [
             {"task": "job-1"},
@@ -396,6 +400,36 @@ class TestAITools(unittest.TestCase):
         self.assertEqual(result, {"state": "done"})
         self.assertEqual(call.call_args_list[1].args[0], "/jobs/job-1")
 
+
+    @patch("python.ai.requests.get")
+    @patch("python.ai.time.sleep")
+    @patch("python.ai.call_api")
+    def test_text_to_video_saves_output_url(self, call, _sleep, download):
+        call.side_effect = [
+            {"id": "job-1"},
+            {"status": "completed", "video_url": "https://example.test/video.mp4"},
+        ]
+        download.return_value.content = b"video"
+        download.return_value.raise_for_status.return_value = None
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "nested" / "video.mp4"
+            result = text_to_video(
+                "animate",
+                output=output,
+                config={
+                    "ai": {
+                        "video": {
+                            "endpoint": "/create",
+                            "status_endpoint": "/jobs/{task_id}",
+                            "url_response_field": "video_url",
+                            "poll_interval_seconds": 0,
+                        }
+                    }
+                },
+            )
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(output.read_bytes(), b"video")
+            download.assert_called_once_with("https://example.test/video.mp4", timeout=120)
 
 if __name__ == "__main__":
     unittest.main()

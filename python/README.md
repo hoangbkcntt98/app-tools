@@ -8,5 +8,6 @@ Install dependencies:
 python -m pip install -r python/requirements.txt
 ```
 
-Copy `config.example.json` to ignored `config.json`, or provide another path
-with `COMMON_TOOLS_CONFIG`.
+Python and TypeScript share repository-root `config.json`. Copy
+`../config.example.json` to `../config.json`, or select another path with
+`COMMON_TOOLS_CONFIG`.

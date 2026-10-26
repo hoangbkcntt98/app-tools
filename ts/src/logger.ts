@@ -71,7 +71,7 @@ export async function log(
     config?: ConfigInput;
   } = {},
 ): Promise<void> {
-  const logger = await getLogger(options.name ?? "common.tools", options.config);
+  const logger = await getLogger(options.name ?? "tools", options.config);
   const level = options.level ?? "INFO";
   await logger[level.toLowerCase() as keyof Logger](message);
 }

@@ -5,8 +5,8 @@ logging.
 
 ## Setup
 
-Implementations live in `python/` and `ts/`. Run commands from repository
-root. Copy matching `config.example.json` to ignored `config.json`; set
+Implementations live in `python/` and `ts/`. Both use one `config.json` in
+repository root. Copy root `config.example.json` to ignored `config.json`; set
 provider URLs, IDs, scopes, models, paths, and credentials. Set secrets as
 direct config values such as `ai.chat.api_key` and
 `facebook.access_token`. These config files are ignored by Git. Explicit
@@ -28,14 +28,14 @@ python -m pip install -r python/requirements.txt
 Google OAuth credential and token paths resolve relative to the selected config
 file. Service account auth works where Google API supports it; grant account
 access to target Sheets and Drive files. Python imports use
-`common.tools.python.*`; set `COMMON_TOOLS_CONFIG` or pass `config=...`.
+`python.*`; set `COMMON_TOOLS_CONFIG` or pass `config=...`.
 
 Run Python tools directly with `python/cli.py`. Command examples
 for each integration live in `tools.test.txt`.
 
 ```bash
 python python/cli.py --help
-python python/cli.py --config python/config.json \
+python python/cli.py --config config.json \
   sheets-read --spreadsheet-id SPREADSHEET_ID --range 'Sheet1!A1:C5'
 ```
 
@@ -46,9 +46,9 @@ in `access_token`; set Page ID, Graph API base URL, and version in config or
 pass Page ID to an operation.
 
 ```python
-from common.tools.python.facebook import FacebookTool
+from python.facebook import FacebookTool
 
-facebook = FacebookTool("python/config.json")
+facebook = FacebookTool("config.json")
 
 # Read one page of comments, or follow all API pages with page_all=True.
 comments = facebook.get_comments(
@@ -83,11 +83,11 @@ is Unix seconds (UTC); scheduling sends the Page post/photo/video unpublished
 for Facebook to publish at that time. CLI also accepts ISO-8601 with explicit timezone:
 
 ```bash
-python python/cli.py --config python/config.json facebook-post \
+python python/cli.py --config config.json facebook-post \
   --message "Scheduled post" --publish-at 2026-10-27T09:00:00Z
-python python/cli.py --config python/config.json facebook-post \
+python python/cli.py --config config.json facebook-post \
   --message "Scheduled photo" --image output/image.jpg --publish-at 2026-10-27T09:00:00Z
-python python/cli.py --config python/config.json facebook-upload-video \
+python python/cli.py --config config.json facebook-upload-video \
   --video output/video.mp4 --description "Scheduled video" --publish-at 2026-10-27T09:00:00Z
 ```
 
@@ -100,9 +100,9 @@ validate and quote table/column identifiers; update and delete require non-empty
 conditions to avoid accidental full-table changes.
 
 ```python
-from common.tools.python.database import create_database_pool
+from python.database import create_database_pool
 
-db = create_database_pool("python/config.json")
+db = create_database_pool("config.json")
 try:
     db.insert("users", {"name": "Ada"})
     rows = db.select("users", where={"active": True}, limit=50)
@@ -122,14 +122,14 @@ Functions use Google credentials configured in `google`. IDs, ranges, paths, and
 cell contents are function arguments.
 
 ```python
-from common.tools.python.google import (
+from python.google import (
     download_drive_file,
     read_spreadsheet,
     upload_drive_file,
     write_spreadsheet,
 )
 
-config = "python/config.json"
+config = "config.json"
 
 # Read every tab, or request specific ranges with ranges=["Tab!A1:C20"].
 sheet = read_spreadsheet("SPREADSHEET_ID", config=config)
@@ -210,7 +210,7 @@ OAuth client file, token file, upload scope, category ID, and privacy status.
 Provide video file and title per call.
 
 ```python
-from common.tools.python.youtube import upload_video
+from python.youtube import upload_video
 
 result = upload_video(
     "output/video.mp4",
@@ -219,7 +219,7 @@ result = upload_video(
     tags=["tag-one", "tag-two"],
     category_id="22",
     privacy_status="private",
-    config="python/config.json",
+    config="config.json",
 )
 video_id = result["id"]
 ```
@@ -237,9 +237,9 @@ join against that service's base URL; absolute endpoint URLs override it.
 
 ```python
 from pathlib import Path
-from common.tools.python.ai import call_api, text_to_audio, text_to_image, text_to_video
+from python.ai import call_api, text_to_audio, text_to_image, text_to_video
 
-config = "python/config.json"
+config = "config.json"
 
 # Generic request. `service` selects auth, timeout, and base URL section.
 chat_response = call_api(
@@ -265,6 +265,14 @@ states, and intervals are configurable. Pass `endpoint`, `model`, and
 accepts `method`, `payload`, `headers`, `params`, and `response_type` (`json`,
 `bytes`, or `text`). For video, configure both `video.endpoint` and
 `video.status_endpoint` with `{task_id}` placeholder when polling is needed.
+Use CLI `ai-video --output output/video.mp4` to save returned video URL or
+base64 data. Configure `ai.video.url_response_field` or
+`ai.video.base64_response_field` when provider uses different response fields.
+
+```bash
+python python/cli.py --config config.json ai-video \
+  --prompt "A video prompt" --output output/video.mp4
+```
 
 ## Logging
 
@@ -272,13 +280,13 @@ accepts `method`, `payload`, `headers`, `params`, and `response_type` (`json`,
 console, format, and propagation. `log` writes one message using same settings.
 
 ```python
-from common.tools.python.logger import get_logger, log
+from python.logger import get_logger, log
 
-logger = get_logger("my_tool", "python/config.json")
+logger = get_logger("my_tool", "config.json")
 logger.info("Started")
 logger.error("Failed")
 
-log("Completed", name="my_tool", level="INFO", config="python/config.json")
+log("Completed", name="my_tool", level="INFO", config="config.json")
 ```
 
 Set `logger.file` to `null` to disable file output, or use `console` to enable
@@ -297,8 +305,8 @@ npm install
 npm run typecheck
 ```
 
-Copy `ts/config.example.json` to `ts/config.json`.
-Set `COMMON_TOOLS_TS_CONFIG` to select another config file. Set AI credentials
+TypeScript also reads root `config.json` by default. Set
+`COMMON_TOOLS_TS_CONFIG` to select another config file. Set AI credentials
 in per-service `api_key` fields. Google OAuth credentials use direct config
 fields `oauth_client_id`, `oauth_client_secret`, and `oauth_refresh_token`;
 service-account auth uses `service_account_file`.

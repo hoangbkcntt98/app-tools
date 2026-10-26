@@ -1,0 +1,139 @@
+{
+  "database": {
+    "driver": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "dbname": "YOUR_DATABASE",
+    "user": "YOUR_USER",
+    "password": "YOUR_PASSWORD",
+    "min_size": 1,
+    "max_size": 10
+  },
+  "google": {
+    "auth_type": "oauth",
+    "oauth_client_file": "client.json",
+    "token_file": "token.json",
+    "service_account_file": "account_service.json",
+    "oauth_port": 0,
+    "oauth_timeout_seconds": 300,
+    "scopes": [],
+    "sheets_api_name": "sheets",
+    "sheets_api_version": "v4",
+    "sheets_scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "drive_api_name": "drive",
+    "drive_api_version": "v3",
+    "drive_scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ],
+    "value_render_option": "FORMATTED_VALUE",
+    "value_input_option": "USER_ENTERED",
+    "supports_all_drives": true
+  },
+  "facebook": {
+    "graph_api_base": "https://graph.facebook.com",
+    "graph_api_version": "v26.0",
+    "page_id": "YOUR_FACEBOOK_PAGE_ID",
+    "access_token": "",
+    "timeout_seconds": 120,
+    "comment_fields": "id,message,from,created_time"
+  },
+  "anki": {
+    "api_url": "http://127.0.0.1:8765"
+  },
+  "youtube": {
+    "auth_type": "oauth",
+    "oauth_client_file": "client.json",
+    "token_file": "youtube_token.json",
+    "scopes": [
+      "https://www.googleapis.com/auth/youtube.upload"
+    ],
+    "category_id": "22",
+    "privacy_status": "private",
+    "resumable_upload": true,
+    "chunk_size_bytes": -1,
+    "upload_parts": "snippet,status"
+  },
+  "ai": {
+    "chat": {
+      "base_url": "https://your-chat-api.example/v1",
+      "endpoint": "/chat/completions",
+      "model": "YOUR_CHAT_MODEL",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120
+    },
+    "image": {
+      "base_url": "https://your-image-api.example/v1",
+      "endpoint": "/images/generations",
+      "method": "POST",
+      "model": "YOUR_IMAGE_MODEL",
+      "model_field": "model",
+      "prompt_field": "prompt",
+      "base64_response_field": "b64_json",
+      "url_response_field": "url",
+      "data_field": "data",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120,
+      "request_options": {
+        "size": "1024x1024",
+        "response_format": "b64_json"
+      }
+    },
+    "video": {
+      "base_url": "https://your-video-api.example/v1",
+      "endpoint": "/videos",
+      "method": "POST",
+      "model": "YOUR_VIDEO_MODEL",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120,
+      "status_endpoint": "/videos/{task_id}",
+      "task_id_field": "id",
+      "status_field": "status",
+      "success_values": [
+        "succeeded",
+        "completed"
+      ],
+      "failure_values": [
+        "failed",
+        "error"
+      ],
+      "poll_interval_seconds": 5,
+      "poll_timeout_seconds": 900,
+      "request_options": {
+        "duration": 5
+      }
+    },
+    "audio": {
+      "base_url": "https://your-audio-api.example/v1",
+      "endpoint": "/audio/speech",
+      "method": "POST",
+      "model": "YOUR_AUDIO_MODEL",
+      "model_field": "model",
+      "text_field": "input",
+      "api_key": "",
+      "api_key_header": "Authorization",
+      "auth_scheme": "Bearer",
+      "timeout_seconds": 120,
+      "response_type": "bytes",
+      "base64_response_field": "audio",
+      "request_options": {
+        "voice": "YOUR_VOICE",
+        "response_format": "mp3"
+      }
+    }
+  },
+  "logger": {
+    "level": "INFO",
+    "file": "logs/common-tools.log",
+    "console": true,
+    "propagate": false,
+    "format": "%(asctime)s %(levelname)s %(name)s: %(message)s"
+  }
+}

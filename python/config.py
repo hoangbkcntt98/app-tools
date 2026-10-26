@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 TOOLS_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG_PATH = TOOLS_DIR / "config.json"
+DEFAULT_CONFIG_PATH = TOOLS_DIR.parent / "config.json"
 
 
 def load_config(

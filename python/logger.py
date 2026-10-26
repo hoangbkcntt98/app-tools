@@ -58,7 +58,7 @@ def get_logger(
 def log(
     message: str,
     *,
-    name: str = "common.tools",
+    name: str = "tools",
     level: str = "INFO",
     config: Mapping[str, Any] | str | Path | None = None,
 ) -> None:

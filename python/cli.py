@@ -1,4 +1,4 @@
-"""Command-line entry point for common.tools.python integrations."""
+"""Command-line entry point for Python integrations."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
@@ -36,7 +36,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     command = commands.add_parser("log", help="Write one log message")
     command.add_argument("--message", required=True)
-    command.add_argument("--name", default="common.tools.cli")
+    command.add_argument("--name", default="tools.cli")
     command.add_argument("--level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO")
 
     command = commands.add_parser("ai-call", help="Call configured AI HTTP API")
@@ -54,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
         command.add_argument("--prompt" if service != "audio" else "--text", required=True)
         command.add_argument("--model")
         command.add_argument("--options", type=_json_value, default={})
-        command.add_argument("--output", help="Required for image/audio byte output")
+        command.add_argument("--output", help="Save generated media to this path")
 
     command = commands.add_parser("facebook-comments", help="Read Facebook comments")
     command.add_argument("--object-id", required=True)
@@ -164,13 +164,13 @@ def main() -> None:
     config = args.config
 
     if args.command == "log":
-        from common.tools.python.logger import log
+        from python.logger import log
 
         log(args.message, name=args.name, level=args.level, config=config)
         return
 
     if args.command == "ai-call":
-        from common.tools.python.ai import call_api
+        from python.ai import call_api
 
         result = call_api(
             args.endpoint,
@@ -192,14 +192,20 @@ def main() -> None:
         return
 
     if args.command.startswith("ai-"):
-        from common.tools.python.ai import text_to_audio, text_to_image, text_to_video
+        from python.ai import text_to_audio, text_to_image, text_to_video
 
         if args.command == "ai-image":
             result = text_to_image(args.prompt, model=args.model, options=args.options, config=config)
         elif args.command == "ai-audio":
             result = text_to_audio(args.text, model=args.model, options=args.options, config=config)
         else:
-            result = text_to_video(args.prompt, model=args.model, options=args.options, config=config)
+            result = text_to_video(
+                args.prompt,
+                model=args.model,
+                options=args.options,
+                output=args.output,
+                config=config,
+            )
         if isinstance(result, bytes):
             if not args.output:
                 raise SystemExit("--output is required for AI image/audio bytes")
@@ -207,12 +213,14 @@ def main() -> None:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_bytes(result)
             print(output)
+        elif args.command == "ai-video" and args.output:
+            print(Path(args.output))
         else:
             _print(result)
         return
 
     if args.command.startswith("facebook-"):
-        from common.tools.python.facebook import FacebookTool
+        from python.facebook import FacebookTool
 
         tool = FacebookTool(config)
         if args.command == "facebook-comments":
@@ -259,7 +267,7 @@ def main() -> None:
         return
 
     if args.command.startswith("sheets-") or args.command.startswith("drive-"):
-        from common.tools.python.google import (
+        from python.google import (
             download_drive_file,
             read_spreadsheet,
             upload_drive_file,
@@ -296,7 +304,7 @@ def main() -> None:
 
         anki_settings = {}
         if config:
-            from common.tools.python.config import section_config
+            from python.config import section_config
             anki_settings = section_config(config, "anki")
         connector = AnkiConnector(api_url=args.api_url or anki_settings.get("api_url", "http://127.0.0.1:8765"))
         if args.command == "anki-sync":
@@ -319,13 +327,13 @@ def main() -> None:
         return
 
     if args.command == "video-concat":
-        from common.tools.python.video import concatenate_videos
+        from python.video import concatenate_videos
 
         print(concatenate_videos(args.videos, args.output, ffmpeg_bin=args.ffmpeg_bin, reencode=args.reencode))
         return
 
     if args.command == "html-to-video":
-        from common.tools.python.video import html_to_video
+        from python.video import html_to_video
 
         print(html_to_video(
             args.html, args.output, duration=args.duration, fps=args.fps,
@@ -335,7 +343,7 @@ def main() -> None:
         return
 
     if args.command == "youtube-upload":
-        from common.tools.python.youtube import upload_video
+        from python.youtube import upload_video
 
         result = upload_video(
             args.video,

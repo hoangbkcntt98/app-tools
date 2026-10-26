@@ -2,6 +2,8 @@
 **/config.json
 **/account_service.json
 **/client.json
+**/.env
+/vvafclient
 
 # Dependencies and generated files
 **/node_modules/

@@ -213,6 +213,7 @@ def text_to_video(
     endpoint: str | None = None,
     model: str | None = None,
     options: Mapping[str, Any] | None = None,
+    output: str | Path | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
 ) -> dict[str, Any]:
     """Create and poll a video task using configurable provider response fields."""
@@ -244,6 +245,8 @@ def text_to_video(
     task_id_field = str(video_settings.get("task_id_field", "id"))
     task_id = result.get(task_id_field)
     if not task_id:
+        if output is not None:
+            _save_video(result, Path(output), video_settings, float(settings.get("timeout_seconds", 120)))
         return result
 
     status_field = str(video_settings.get("status_field", "status"))
@@ -264,9 +267,45 @@ def text_to_video(
             raise RuntimeError("Video status API must return a JSON object")
         status = result.get(status_field)
         if status in success_values:
+            if output is not None:
+                _save_video(result, Path(output), video_settings, float(settings.get("timeout_seconds", 120)))
             return result
         if status in failure_values:
             raise RuntimeError(f"Video generation failed: {result}")
         if time.monotonic() >= deadline:
             raise TimeoutError(f"Video task {task_id} exceeded polling timeout")
         time.sleep(interval)
+
+def _save_video(
+    response: Mapping[str, Any],
+    output: Path,
+    settings: Mapping[str, Any],
+    timeout: float,
+) -> None:
+    """Save video bytes or a downloadable URL from a provider response."""
+    data_field = str(settings.get("data_field", "data"))
+    item: Any = response.get(data_field, response)
+    if isinstance(item, list) and item:
+        item = item[0]
+    if not isinstance(item, Mapping):
+        item = response
+
+    encoded = item.get(str(settings.get("base64_response_field", "video")))
+    if encoded:
+        encoded = str(encoded)
+        if encoded.startswith("data:") and "," in encoded:
+            encoded = encoded.split(",", 1)[1]
+        video_bytes = base64.b64decode(encoded, validate=True)
+    else:
+        video_url = item.get(str(settings.get("url_response_field", "url")))
+        if not video_url:
+            raise RuntimeError(
+                "Video API response must contain base64 data or a video URL to save with --output"
+            )
+        download = requests.get(str(video_url), timeout=timeout)
+        download.raise_for_status()
+        video_bytes = download.content
+    if not video_bytes:
+        raise RuntimeError("Video API returned empty video data")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(video_bytes)

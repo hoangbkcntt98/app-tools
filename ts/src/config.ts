@@ -6,7 +6,7 @@ export type ToolConfig = Record<string, any>;
 export type ConfigInput = ToolConfig | string;
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-export const defaultConfigPath = path.resolve(moduleDir, "../config.json");
+export const defaultConfigPath = path.resolve(moduleDir, "../../config.json");
 
 export async function loadConfig(input?: ConfigInput): Promise<ToolConfig> {
   if (input && typeof input === "object") return { ...input };
