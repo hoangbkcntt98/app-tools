@@ -340,5 +340,6 @@ def _looks_like_video_url(value: str) -> bool:
     return (
         parsed.scheme in {"http", "https"}
         or value.startswith(("/", "./", "../"))
+        or ("/" in value and not any(character.isspace() for character in value))
         or Path(parsed.path).suffix.lower() in {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
     )

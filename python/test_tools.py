@@ -422,7 +422,7 @@ class TestAITools(unittest.TestCase):
     def test_text_to_video_resolves_relative_output_url(self, call, _sleep):
         call.side_effect = [
             {"id": "job-1"},
-            {"status": "completed", "video": "/v1/media/job-1.mp4"},
+            {"status": "completed", "video": "media/job-1"},
             b"video",
         ]
         with tempfile.TemporaryDirectory() as directory:
@@ -445,7 +445,7 @@ class TestAITools(unittest.TestCase):
             self.assertEqual(output.read_bytes(), b"video")
             self.assertEqual(
                 call.call_args_list[2].args[0],
-                "http://example.test/v1/media/job-1.mp4",
+                "http://example.test/v1/media/job-1",
             )
             self.assertEqual(call.call_args_list[2].kwargs["response_type"], "bytes")
 
