@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +21,7 @@ from python.google import (
 )
 from python.logger import get_logger, log
 from python.config import DEFAULT_CONFIG_PATH
+from python.youtube import upload_video
 
 
 class TestAnkiCliDispatch(unittest.TestCase):
@@ -51,6 +54,95 @@ class TestAnkiCliDispatch(unittest.TestCase):
 
         self.assertIn(("list_notes", "deck:Default", 50), calls)
         self.assertIn(("sync", 300), calls)
+
+
+class TestCliJsonResponse(unittest.TestCase):
+    def _run_cli(self, config, command, mock_target, mock_result):
+        from python.cli import main
+
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
+            json.dump(config, config_file)
+            config_file.flush()
+            output = io.StringIO()
+            with patch(mock_target, mock_result), patch(
+                "sys.argv", ["cli", "--config", config_file.name, *command]
+            ), redirect_stdout(output):
+                try:
+                    main()
+                except SystemExit as exc:
+                    return output.getvalue(), exc.code
+            return output.getvalue(), 0
+
+    def test_success_uses_json_envelope_when_enabled(self):
+        output, exit_code = self._run_cli(
+            {"response_as_json": True},
+            ["ai-call", "--endpoint", "/test"],
+            "python.ai.call_api",
+            MagicMock(return_value={"answer": 42}),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            json.loads(output),
+            {"status": "ok", "response": {"answer": 42}},
+        )
+
+    def test_error_uses_json_envelope_and_nonzero_exit_when_enabled(self):
+        output, exit_code = self._run_cli(
+            {"response_as_json": True},
+            ["ai-call", "--endpoint", "/test"],
+            "python.ai.call_api",
+            MagicMock(side_effect=RuntimeError("API unavailable")),
+        )
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(
+            json.loads(output),
+            {"status": "error", "response": None, "error": "API unavailable"},
+        )
+
+    def test_disabled_keeps_unwrapped_response(self):
+        output, exit_code = self._run_cli(
+            {"response_as_json": False},
+            ["ai-call", "--endpoint", "/test"],
+            "python.ai.call_api",
+            MagicMock(return_value={"answer": 42}),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(json.loads(output), {"answer": 42})
+
+
+class TestYouTubeUpload(unittest.TestCase):
+    @patch("googleapiclient.http.MediaFileUpload")
+    def test_upload_includes_audience_and_synthetic_media_declarations(self, media_upload):
+        service = MagicMock()
+        service.videos.return_value.insert.return_value.execute.return_value = {"id": "video-1"}
+        with tempfile.NamedTemporaryFile() as video:
+            result = upload_video(
+                video.name,
+                title="Test video",
+                service=service,
+                config={
+                    "youtube": {
+                        "category_id": "22",
+                        "privacy_status": "unlisted",
+                        "made_for_kids": True,
+                        "contains_synthetic_media": False,
+                    }
+                },
+            )
+
+        self.assertEqual(result, {"id": "video-1"})
+        body = service.videos.return_value.insert.call_args.kwargs["body"]
+        self.assertEqual(
+            body["status"],
+            {
+                "privacyStatus": "unlisted",
+                "selfDeclaredMadeForKids": True,
+                "containsSyntheticMedia": False,
+            },
+        )
 
 
 class TestDatabasePool(unittest.TestCase):

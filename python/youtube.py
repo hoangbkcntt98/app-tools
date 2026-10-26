@@ -19,6 +19,8 @@ def upload_video(
     tags: list[str] | None = None,
     category_id: str | None = None,
     privacy_status: str | None = None,
+    made_for_kids: bool | None = None,
+    contains_synthetic_media: bool | None = None,
     publish_at: str | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
     service: Any = None,
@@ -36,6 +38,20 @@ def upload_video(
         raise ValueError("Provide privacy_status or youtube.privacy_status in config")
     if not category:
         raise ValueError("Provide category_id or youtube.category_id in config")
+    if privacy not in {"private", "unlisted", "public"}:
+        raise ValueError("privacy_status must be private, unlisted, or public")
+    kids_setting = made_for_kids
+    if kids_setting is None:
+        kids_setting = settings.get("made_for_kids")
+    synthetic_setting = contains_synthetic_media
+    if synthetic_setting is None:
+        synthetic_setting = settings.get("contains_synthetic_media")
+    for key, value in (
+        ("made_for_kids", kids_setting),
+        ("contains_synthetic_media", synthetic_setting),
+    ):
+        if value is not None and not isinstance(value, bool):
+            raise ValueError(f"youtube.{key} must be a boolean")
     if service is None:
         try:
             from googleapiclient.http import MediaFileUpload
@@ -66,6 +82,10 @@ def upload_video(
             raise RuntimeError("Google API client package is required for YouTube uploads") from exc
 
     status: dict[str, Any] = {"privacyStatus": privacy}
+    if kids_setting is not None:
+        status["selfDeclaredMadeForKids"] = kids_setting
+    if synthetic_setting is not None:
+        status["containsSyntheticMedia"] = synthetic_setting
     if publish_at:
         status["publishAt"] = publish_at
     body = {

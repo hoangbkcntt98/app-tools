@@ -57,7 +57,7 @@
 # python -m playwright install chromium
 #
 # YouTube upload (publishes video; set youtube.privacy_status to private for testing):
-# python python/cli.py --config config.json youtube-upload --video output/test.mp4 --title "Manual tools test" --description "Test upload"
+# python python/cli.py --config config.json youtube-upload --video output/test.mp4 --title "Manual tools test" --description "Test upload" --privacy-status private --made-for-kids no --contains-synthetic-media no
 #
 # All command options accept caller-provided values; use each command's --help
 # for optional flags. TypeScript functions have examples in README.md.

@@ -1,4 +1,5 @@
 {
+  "response_as_json": false,
   "database": {
     "driver": "postgresql",
     "host": "localhost",
@@ -46,11 +47,13 @@
     "auth_type": "oauth",
     "oauth_client_file": "client.json",
     "token_file": "youtube_token.json",
+    "privacy_status": "private",
+    "made_for_kids": null,
+    "contains_synthetic_media": null,
     "scopes": [
       "https://www.googleapis.com/auth/youtube.upload"
     ],
     "category_id": "22",
-    "privacy_status": "private",
     "resumable_upload": true,
     "chunk_size_bytes": -1,
     "upload_parts": "snippet,status"

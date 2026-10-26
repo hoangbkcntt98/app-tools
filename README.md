@@ -12,6 +12,11 @@ direct config values such as `ai.chat.api_key` and
 `facebook.access_token`. These config files are ignored by Git. Explicit
 function arguments override matching config values.
 
+Set root `response_as_json` to `true` to wrap Python CLI results as
+`{"status":"ok","response":...}`. Failures return
+`{"status":"error","response":null,"error":"..."}` and exit with nonzero status.
+Set it to `false` to keep existing CLI output.
+
 Before running, install and configure both required services:
 
 - [AnkiConnect](https://github.com/hoangbkcntt98/anki-connect-server)
@@ -347,23 +352,30 @@ result = upload_video(
     title="Video title",
     description="Video description",
     tags=["tag-one", "tag-two"],
-    category_id="22",
-    privacy_status="private",
+category_id="22",
+privacy_status="private",
+made_for_kids=False,
+contains_synthetic_media=False,
     config="config.json",
 )
 video_id = result["id"]
 ```
 
-`category_id` and `privacy_status` can come from config instead of arguments.
-`publish_at` supports scheduled publish time where YouTube API permits it.
-Upload options such as chunk size and returned API parts are configurable.
+`category_id`, `privacy_status`, `made_for_kids`, and
+`contains_synthetic_media` can come from config instead of arguments.
+`made_for_kids` and `contains_synthetic_media` accept `true` or `false`; leave
+them unset to omit those declarations. Choose values that accurately describe
+video and intended audience. `publish_at` supports scheduled publish time where
+YouTube API permits it. Upload options such as chunk size and returned API
+parts are configurable.
 
 #### Command line
 
 ```bash
 python python/cli.py --config config.json youtube-upload \
   --video output/video.mp4 --title "Video title" \
-  --privacy-status private --publish-at 2026-10-27T09:00:00Z
+  --privacy-status private --made-for-kids no \
+  --contains-synthetic-media no --publish-at 2026-10-27T09:00:00Z
 ```
 
 ## AI APIs

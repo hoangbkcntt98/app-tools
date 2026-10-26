@@ -157,26 +157,44 @@ def _build_parser() -> argparse.ArgumentParser:
     command.add_argument("--description", default="")
     command.add_argument("--tags", type=_json_value)
     command.add_argument("--category-id")
-    command.add_argument("--privacy-status")
+    command.add_argument("--privacy-status", choices=("private", "unlisted", "public"))
+    command.add_argument(
+        "--made-for-kids",
+        choices=("yes", "no"),
+        help="Set YouTube audience declaration",
+    )
+    command.add_argument(
+        "--contains-synthetic-media",
+        choices=("yes", "no"),
+        help="Declare realistic altered or synthetic content",
+    )
     command.add_argument("--publish-at")
     return parser
 
 
+_RESPONSE_AS_JSON = False
+
+
 def _print(value: Any) -> None:
+    if _RESPONSE_AS_JSON:
+        if isinstance(value, bytes):
+            value = {"bytes": len(value)}
+        value = {"status": "ok", "response": value}
     if isinstance(value, bytes):
         print(f"{len(value)} bytes")
     else:
         print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
 
 
-def main() -> None:
-    args = _build_parser().parse_args()
+def _run(args: argparse.Namespace) -> None:
     config = args.config
 
     if args.command == "log":
         from python.logger import log
 
         log(args.message, name=args.name, level=args.level, config=config)
+        if _RESPONSE_AS_JSON:
+            _print(None)
         return
 
     if args.command == "ai-call":
@@ -196,7 +214,7 @@ def main() -> None:
             output = Path(args.output)
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_bytes(result)
-            print(output)
+            _print(str(output))
         else:
             _print(result)
         return
@@ -222,9 +240,9 @@ def main() -> None:
             output = Path(args.output)
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_bytes(result)
-            print(output)
+            _print(str(output))
         elif args.command == "ai-video" and args.output:
-            print(Path(args.output))
+            _print(str(Path(args.output)))
         else:
             _print(result)
         return
@@ -346,13 +364,13 @@ def main() -> None:
     if args.command == "video-concat":
         from python.video import concatenate_videos
 
-        print(concatenate_videos(args.videos, args.output, ffmpeg_bin=args.ffmpeg_bin, reencode=args.reencode))
+        _print(concatenate_videos(args.videos, args.output, ffmpeg_bin=args.ffmpeg_bin, reencode=args.reencode))
         return
 
     if args.command == "html-to-video":
         from python.video import html_to_video
 
-        print(html_to_video(
+        _print(html_to_video(
             args.html, args.output, duration=args.duration, fps=args.fps,
             width=args.width, height=args.height, start=args.start,
             ffmpeg_bin=args.ffmpeg_bin, chromium_bin=args.chromium_bin,
@@ -369,10 +387,42 @@ def main() -> None:
             tags=args.tags,
             category_id=args.category_id,
             privacy_status=args.privacy_status,
+            made_for_kids=(
+                args.made_for_kids == "yes" if args.made_for_kids is not None else None
+            ),
+            contains_synthetic_media=(
+                args.contains_synthetic_media == "yes"
+                if args.contains_synthetic_media is not None
+                else None
+            ),
             publish_at=args.publish_at,
             config=config,
         )
         _print(result)
+
+
+def main() -> None:
+    global _RESPONSE_AS_JSON
+    args = _build_parser().parse_args()
+    from python.config import load_config
+
+    try:
+        root_config = load_config(args.config)
+        _RESPONSE_AS_JSON = root_config.get("response_as_json", False) is True
+        _run(args)
+    except (Exception, SystemExit) as exc:
+        if not _RESPONSE_AS_JSON:
+            raise
+        message = str(exc) or f"Tool exited with status {getattr(exc, 'code', 1)}"
+        print(
+            json.dumps(
+                {"status": "error", "response": None, "error": message},
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            )
+        )
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":
