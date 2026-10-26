@@ -11,7 +11,12 @@ from unittest.mock import MagicMock, patch
 from python.ai import call_api, text_to_audio, text_to_image, text_to_video
 from python.database import DatabasePool
 from python.facebook import FacebookTool
-from python.google import download_drive_file, read_spreadsheet, write_spreadsheet
+from python.google import (
+    _drive_file_id,
+    download_drive_file,
+    read_spreadsheet,
+    write_spreadsheet,
+)
 from python.logger import get_logger, log
 from python.config import DEFAULT_CONFIG_PATH
 
@@ -68,6 +73,16 @@ class TestToolConfigAndLogger(unittest.TestCase):
 
 
 class TestGoogleTools(unittest.TestCase):
+    def test_drive_file_id_accepts_share_urls(self):
+        self.assertEqual(
+            _drive_file_id("https://drive.google.com/file/d/file-123/view?usp=sharing"),
+            "file-123",
+        )
+        self.assertEqual(
+            _drive_file_id("https://drive.google.com/open?id=file-456"),
+            "file-456",
+        )
+
     def test_download_exports_google_docs_to_docx(self):
         service = MagicMock()
         service.files.return_value.get.return_value.execute.return_value = {

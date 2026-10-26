@@ -100,7 +100,9 @@ def _build_parser() -> argparse.ArgumentParser:
     command.add_argument("--mime-type")
 
     command = commands.add_parser("drive-download", help="Download Drive file")
-    command.add_argument("--file-id", required=True)
+    file_source = command.add_mutually_exclusive_group(required=True)
+    file_source.add_argument("--file-id")
+    file_source.add_argument("--url", help="Google Drive or Docs sharing URL")
     command.add_argument("--output", required=True)
     command.add_argument(
         "--mime-type",
@@ -304,7 +306,7 @@ def main() -> None:
             )
         else:
             result = download_drive_file(
-                args.file_id,
+                args.file_id or args.url,
                 args.output,
                 mime_type=args.mime_type,
                 config=config,

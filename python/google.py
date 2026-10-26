@@ -4,6 +4,7 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.parse import parse_qs, urlsplit
 
 from .config import section_config
 from .google_auth import build_google_service
@@ -189,6 +190,7 @@ def download_drive_file(
     """Download a Drive file or export a Google Docs Editor file."""
     if not file_id:
         raise ValueError("file_id is required")
+    file_id = _drive_file_id(file_id)
     settings = section_config(config, "google")
     output = Path(destination).expanduser()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -244,3 +246,22 @@ def download_drive_file(
         _, done = downloader.next_chunk()
     output.write_bytes(buffer.getvalue())
     return output
+
+
+def _drive_file_id(value: str) -> str:
+    """Accept either a Drive file ID or a standard Google Drive share URL."""
+    value = value.strip()
+    parsed = urlsplit(value)
+    if not parsed.scheme and not parsed.netloc:
+        return value
+    if parsed.hostname not in {"drive.google.com", "docs.google.com"}:
+        raise ValueError("URL must be a Google Drive or Docs file URL")
+    query_id = parse_qs(parsed.query).get("id", [None])[0]
+    if query_id:
+        return query_id
+    parts = [part for part in parsed.path.split("/") if part]
+    if "d" in parts:
+        index = parts.index("d")
+        if index + 1 < len(parts):
+            return parts[index + 1]
+    raise ValueError("Could not find a file ID in the Google Drive URL")
