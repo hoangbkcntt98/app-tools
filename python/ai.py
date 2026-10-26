@@ -246,7 +246,7 @@ def text_to_video(
     task_id = result.get(task_id_field)
     if not task_id:
         if output is not None:
-            _save_video(result, Path(output), video_settings, float(settings.get("timeout_seconds", 120)))
+            _save_video(result, Path(output), video_settings, config)
         return result
 
     status_field = str(video_settings.get("status_field", "status"))
@@ -268,7 +268,7 @@ def text_to_video(
         status = result.get(status_field)
         if status in success_values:
             if output is not None:
-                _save_video(result, Path(output), video_settings, float(settings.get("timeout_seconds", 120)))
+                _save_video(result, Path(output), video_settings, config)
             return result
         if status in failure_values:
             raise RuntimeError(f"Video generation failed: {result}")
@@ -280,7 +280,7 @@ def _save_video(
     response: Mapping[str, Any],
     output: Path,
     settings: Mapping[str, Any],
-    timeout: float,
+    config: Mapping[str, Any] | str | Path | None,
 ) -> None:
     """Save video bytes or a downloadable URL from a provider response."""
     data_field = str(settings.get("data_field", "data"))
@@ -302,9 +302,21 @@ def _save_video(
             raise RuntimeError(
                 "Video API response must contain base64 data or a video URL to save with --output"
             )
-        download = requests.get(str(video_url), timeout=timeout)
-        download.raise_for_status()
-        video_bytes = download.content
+        base_url = str(settings.get("base_url", "")).strip()
+        download_url = str(video_url)
+        if not download_url.startswith(("http://", "https://")):
+            if not base_url:
+                raise RuntimeError(
+                    "Configure ai.video.base_url to download a relative video URL"
+                )
+            download_url = urljoin(base_url.rstrip("/") + "/", download_url)
+        video_bytes = call_api(
+            download_url,
+            service="video",
+            method="GET",
+            response_type="bytes",
+            config=config,
+        )
     if not video_bytes:
         raise RuntimeError("Video API returned empty video data")
     output.parent.mkdir(parents=True, exist_ok=True)

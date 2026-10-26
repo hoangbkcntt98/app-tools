@@ -401,16 +401,14 @@ class TestAITools(unittest.TestCase):
         self.assertEqual(call.call_args_list[1].args[0], "/jobs/job-1")
 
 
-    @patch("python.ai.requests.get")
     @patch("python.ai.time.sleep")
     @patch("python.ai.call_api")
-    def test_text_to_video_saves_output_url(self, call, _sleep, download):
+    def test_text_to_video_resolves_relative_output_url(self, call, _sleep):
         call.side_effect = [
             {"id": "job-1"},
-            {"status": "completed", "video_url": "https://example.test/video.mp4"},
+            {"status": "completed", "video_url": "/v1/media/job-1.mp4"},
+            b"video",
         ]
-        download.return_value.content = b"video"
-        download.return_value.raise_for_status.return_value = None
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "nested" / "video.mp4"
             result = text_to_video(
@@ -419,6 +417,7 @@ class TestAITools(unittest.TestCase):
                 config={
                     "ai": {
                         "video": {
+                            "base_url": "http://example.test/v1",
                             "endpoint": "/create",
                             "status_endpoint": "/jobs/{task_id}",
                             "url_response_field": "video_url",
@@ -429,7 +428,11 @@ class TestAITools(unittest.TestCase):
             )
             self.assertEqual(result["status"], "completed")
             self.assertEqual(output.read_bytes(), b"video")
-            download.assert_called_once_with("https://example.test/video.mp4", timeout=120)
+            self.assertEqual(
+                call.call_args_list[2].args[0],
+                "http://example.test/v1/media/job-1.mp4",
+            )
+            self.assertEqual(call.call_args_list[2].kwargs["response_type"], "bytes")
 
 if __name__ == "__main__":
     unittest.main()
