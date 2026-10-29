@@ -6,7 +6,7 @@ logging.
 ## Setup
 
 Implementations live in `python/` and `ts/`. Both use one `config.json` in
-repository root. Copy root `config.example.json` to ignored `config.json`; set
+`jobs/app-tools/`. Copy `config.example.json` to ignored `config.json`; set
 provider URLs, IDs, scopes, models, paths, and credentials. Set secrets as
 direct config values such as `ai.chat.api_key` and
 `facebook.access_token`. These config files are ignored by Git. Explicit
@@ -415,15 +415,22 @@ chat_response = call_api(
     config=config,
 )
 
-# Image/audio functions return bytes; save them wherever caller chooses.
-image_bytes = text_to_image("A prompt", config=config)
-Path("output/image.png").write_bytes(image_bytes)
+  # Passing output saves bytes before optional server-side media cleanup.
+  image_bytes = text_to_image("A prompt", output="output/image.png", config=config)
 audio_bytes = text_to_audio("Text to speak", config=config)
 Path("output/audio.mp3").write_bytes(audio_bytes)
 
-# Video creation polls configured status endpoint until complete or timeout.
-video_result = text_to_video("A video prompt", config=config)
+  # Video creation polls, saves output, then cleans returned server-side media.
+  video_result = text_to_video(
+      "A video prompt", output="output/video.mp4", config=config
+  )
 ```
+
+When an output path is supplied, returned video media names are deleted from
+the provider after successful download. Image cleanup runs only for model
+`muse-image`. Both use the matching service `api_key` and derive
+`/admin/media/delete` from its `base_url`; set `ai.media_delete_endpoint` or a
+service-level `media_delete_endpoint` to override that path.
 
 Image/audio/video model, endpoint, request fields, response fields, polling
 states, and intervals are configurable. Pass `endpoint`, `model`, and

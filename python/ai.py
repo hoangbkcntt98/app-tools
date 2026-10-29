@@ -5,13 +5,18 @@ import base64
 import binascii
 import os
 import time
+import warnings
 from pathlib import Path
-from typing import Any, Mapping
-from urllib.parse import urljoin, urlsplit
+from typing import Any, Callable, Mapping
+from urllib.parse import unquote, urljoin, urlsplit
 
 import requests
 
 from .config import section_config
+
+
+class VideoTaskFailed(RuntimeError):
+    """A video provider reported terminal failure for a submitted task."""
 
 
 def _endpoint(
@@ -123,12 +128,110 @@ def _image_bytes(
     raise RuntimeError("Image API response must contain base64 data or an image URL")
 
 
+def _media_names(response: Any) -> list[str]:
+    """Read server-side media names from provider response media fields."""
+    names: list[str] = []
+
+    def add_name(value: Any) -> None:
+        if not isinstance(value, str) or not value.strip():
+            return
+        candidate = value.strip()
+        parsed = urlsplit(candidate)
+        name = unquote(Path(parsed.path).name) if parsed.scheme or "/" in parsed.path else candidate
+        if name and name not in names:
+            names.append(name)
+
+    def collect_media(value: Any, *, allow_plain_strings: bool) -> None:
+        if isinstance(value, str):
+            candidate = value.strip()
+            if allow_plain_strings or "/" in candidate or candidate.lower().endswith(
+                (".mp4", ".mov", ".webm", ".m4v")
+            ):
+                add_name(candidate)
+        elif isinstance(value, Mapping):
+            for key in ("name", "filename"):
+                add_name(value.get(key))
+            for key in ("url", "video_url", "download_url", "output_url"):
+                add_name(value.get(key))
+            if "images" in value:
+                collect_media(value["images"], allow_plain_strings=True)
+            for key in ("video", "videos"):
+                if key in value:
+                    collect_media(value[key], allow_plain_strings=False)
+        elif isinstance(value, list):
+            for item in value:
+                collect_media(item, allow_plain_strings=allow_plain_strings)
+
+    def find_media(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                normalized_key = str(key).lower()
+                if normalized_key == "images":
+                    collect_media(child, allow_plain_strings=True)
+                elif normalized_key in {"video", "videos"}:
+                    collect_media(child, allow_plain_strings=False)
+                elif isinstance(child, (Mapping, list)):
+                    find_media(child)
+        elif isinstance(value, list):
+            for child in value:
+                find_media(child)
+
+    find_media(response)
+    return names
+
+
+def _delete_remote_media(
+    response: Any,
+    settings: Mapping[str, Any],
+    config: Mapping[str, Any] | str | Path | None,
+) -> None:
+    """Delete generated server-side media after a local copy has been saved."""
+    names = _media_names(response)
+    if not names:
+        return
+    root_settings = section_config(config, "ai")
+    endpoint = str(
+        settings.get("media_delete_endpoint")
+        or root_settings.get("media_delete_endpoint")
+        or ""
+    ).strip()
+    base_url = str(settings.get("base_url", "")).strip()
+    if not endpoint:
+        if not base_url:
+            warnings.warn("Cannot delete remote media: service base_url is missing.", RuntimeWarning)
+            return
+        parsed = urlsplit(base_url)
+        if not parsed.scheme or not parsed.netloc:
+            warnings.warn("Cannot delete remote media: service base_url is invalid.", RuntimeWarning)
+            return
+        endpoint = f"{parsed.scheme}://{parsed.netloc}/admin/media/delete"
+    auth_settings = {
+        key: value
+        for key, value in root_settings.items()
+        if not isinstance(value, Mapping)
+    }
+    auth_settings.update(settings)
+    headers = _headers(auth_settings, None)
+    headers.setdefault("Accept", "application/json")
+    try:
+        response = requests.post(
+            endpoint,
+            json={"names": names},
+            headers=headers,
+            timeout=float(settings.get("timeout_seconds", 120)),
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        warnings.warn(f"Remote media deletion failed: {exc}", RuntimeWarning)
+
+
 def text_to_image(
     prompt: str,
     *,
     endpoint: str | None = None,
     model: str | None = None,
     options: Mapping[str, Any] | None = None,
+    output: str | Path | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
 ) -> bytes:
     """Generate image bytes from text using configured image API."""
@@ -153,13 +256,20 @@ def text_to_image(
         payload=payload,
         config=config,
     )
-    return _image_bytes(
+    image = _image_bytes(
         response,
         float(settings.get("timeout_seconds", 120)),
         data_field=str(image_settings.get("data_field", "data")),
         base64_field=str(image_settings.get("base64_response_field", "b64_json")),
         url_field=str(image_settings.get("url_response_field", "url")),
     )
+    if output is not None:
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(image)
+        if str(selected_model).strip().lower() == "muse-image":
+            _delete_remote_media(response, image_settings, config)
+    return image
 
 
 def text_to_audio(
@@ -216,6 +326,7 @@ def text_to_video(
     options: Mapping[str, Any] | None = None,
     output: str | Path | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Create and poll a video task using configurable provider response fields."""
     if not prompt.strip():
@@ -226,6 +337,8 @@ def text_to_video(
         raise ValueError("ai.video config must be an object")
     create_endpoint = endpoint or video_settings.get("endpoint")
     selected_model = model or video_settings.get("model")
+    if selected_model and str(selected_model).strip().startswith("YOUR_"):
+        selected_model = None
     status_endpoint = video_settings.get("status_endpoint")
     if not create_endpoint or not status_endpoint:
         raise ValueError("Configure ai.video.endpoint and ai.video.status_endpoint")
@@ -248,7 +361,12 @@ def text_to_video(
     if not task_id:
         if output is not None:
             _save_video(result, Path(output), video_settings, config)
+            _delete_remote_media(result, video_settings, config)
+        if progress_callback:
+            progress_callback({"phase": "completed"})
         return result
+    if progress_callback:
+        progress_callback({"phase": "submitted", "task_id": str(task_id)})
 
     status_field = str(video_settings.get("status_field", "status"))
     success_values = set(video_settings.get("success_values", ["succeeded", "completed"]))
@@ -267,12 +385,17 @@ def text_to_video(
         if not isinstance(result, dict):
             raise RuntimeError("Video status API must return a JSON object")
         status = result.get(status_field)
+        if progress_callback:
+            progress_callback({"phase": "polling", "task_id": str(task_id), "status": status})
         if status in success_values:
             if output is not None:
                 _save_video(result, Path(output), video_settings, config)
+                _delete_remote_media(result, video_settings, config)
+            if progress_callback:
+                progress_callback({"phase": "completed", "task_id": str(task_id), "status": status})
             return result
         if status in failure_values:
-            raise RuntimeError(f"Video generation failed: {result}")
+            raise VideoTaskFailed(f"Video generation failed: {result}")
         if time.monotonic() >= deadline:
             raise TimeoutError(f"Video task {task_id} exceeded polling timeout")
         time.sleep(interval)

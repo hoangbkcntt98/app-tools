@@ -138,5 +138,47 @@
     "console": true,
     "propagate": false,
     "format": "%(asctime)s %(levelname)s %(name)s: %(message)s"
-  }
+  },
+  "job_config": {
+    "create_grammar_video_jobs": {
+      "schema": "openclaw",
+      "dataDir": "data",
+      "outputDir": "outputs",
+      "runLogDir": "jobs/logs/video-creator/runs",
+      "audio_extension": "mp3",
+      "ffmpeg_bin": "ffmpeg",
+      "ai": {
+        "image": {
+          "model": "YOUR_JOB_IMAGE_MODEL",
+          "request_options": {
+            "size": "1080x1920"
+          }
+        }
+      }
+    },
+    "create_word_creator_jobs": {
+      "node_bin": "node",
+      "paths": {
+        "wordCreatorOutputDir": "/mnt/openclaw-data/openclaw/word-creator",
+        "templatePath": "jobs/assets/template.html",
+        "rendererPath": "jobs/assets/html-to-image.js",
+        "audioPath": "jobs/assets/audio.wav"
+      }
+    }
+  },
+  "watchers": [
+    {
+      "file": "create_grammar_video_jobs.py",
+      "interval": 300,
+      "args": []
+    },
+    {
+      "file": "generate_game_resource.py",
+      "interval": 600,
+      "args": [
+        "--limit",
+        "10"
+      ]
+    }
+  ]
 }

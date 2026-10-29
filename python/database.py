@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import re
+import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.parse import parse_qs, unquote, urlparse
 
 from .config import section_config
 
@@ -51,6 +53,24 @@ class DatabasePool:
         settings: Mapping[str, Any] | None = None,
     ) -> "DatabasePool":
         options = dict(settings or section_config(config, "database"))
+        database_url = os.environ.get("DATABASE_URL", "").strip()
+        if database_url:
+            parsed = urlparse(database_url)
+            if parsed.scheme not in {"postgres", "postgresql"}:
+                raise ValueError("DATABASE_URL must use PostgreSQL.")
+            options.update({
+                "driver": "postgresql",
+                "host": parsed.hostname,
+                "port": parsed.port or 5432,
+                "dbname": parsed.path.lstrip("/"),
+                "user": unquote(parsed.username or ""),
+                "password": unquote(parsed.password or ""),
+            })
+            schema = parse_qs(parsed.query).get("schema", [None])[0]
+            if schema:
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$-]*", schema):
+                    raise ValueError("DATABASE_URL schema is invalid.")
+                options["options"] = f'-c search_path="{schema}",public'
         driver = str(options.get("driver", "")).lower()
         if driver in {"postgres", "postgresql", "psql"}:
             try:
@@ -59,7 +79,7 @@ class DatabasePool:
                 raise RuntimeError("Install psycopg[binary,pool] for PostgreSQL") from exc
             pool = ConnectionPool(
                 conninfo=str(options.get("connection_string", "")),
-                kwargs={k: options[k] for k in ("host", "port", "dbname", "user", "password", "sslmode") if k in options},
+                kwargs={k: options[k] for k in ("host", "port", "dbname", "user", "password", "sslmode", "options") if k in options},
                 min_size=int(options.get("min_size", 1)),
                 max_size=int(options.get("max_size", 10)),
                 open=True,
@@ -105,6 +125,10 @@ class DatabasePool:
                 self.pool.putconn(connection)
             else:
                 connection.close()
+
+    def execute(self, sql: str, params: Sequence[Any] = ()) -> Any:
+        """Execute parameterized SQL and return rows for statements with results."""
+        return self._execute(sql, params)
 
     def select(
         self, table: str, *, where: Mapping[str, Any] | None = None,

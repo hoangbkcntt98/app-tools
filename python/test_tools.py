@@ -146,6 +146,21 @@ class TestYouTubeUpload(unittest.TestCase):
 
 
 class TestDatabasePool(unittest.TestCase):
+    def test_execute_returns_rows_and_binds_parameters(self):
+        cursor = MagicMock()
+        cursor.description = [("value",)]
+        cursor.fetchall.return_value = [{"value": 1}]
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        pool = MagicMock()
+        pool.get_connection.return_value = connection
+        database = DatabasePool(pool, "mysql")
+
+        result = database.execute("SELECT value FROM sample WHERE id = %s", (7,))
+
+        self.assertEqual(result, [{"value": 1}])
+        cursor.execute.assert_called_once_with("SELECT value FROM sample WHERE id = %s", (7,))
+
     def test_mysql_crud_quotes_identifiers_and_binds_values(self):
         cursor = MagicMock()
         cursor.description = None
@@ -553,6 +568,43 @@ class TestAITools(unittest.TestCase):
         self.assertEqual(payload, {"model": "model-a", "prompt": "draw"})
         self.assertEqual(call.call_args.kwargs["service"], "image")
 
+    @patch("python.ai.requests.post")
+    @patch("python.ai.call_api", return_value={
+        "data": [{"b64_json": "aW1hZ2U="}],
+        "video": {"images": ["generated-image.png"]},
+    })
+    def test_muse_image_deletes_remote_copy_after_saving_local(self, call, delete):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "image.png"
+            result = text_to_image(
+                "draw",
+                output=output,
+                config={
+                    "ai": {
+                        "image": {
+                            "base_url": "http://media.example/v1",
+                            "endpoint": "/images",
+                            "model": "muse-image",
+                            "api_key": "image-secret",
+                        }
+                    }
+                },
+            )
+            self.assertEqual(result, b"image")
+            self.assertEqual(output.read_bytes(), b"image")
+            self.assertEqual(
+                delete.call_args.args[0],
+                "http://media.example/admin/media/delete",
+            )
+            self.assertEqual(
+                delete.call_args.kwargs["json"],
+                {"names": ["generated-image.png"]},
+            )
+            self.assertEqual(
+                delete.call_args.kwargs["headers"]["Authorization"],
+                "Bearer image-secret",
+            )
+
     @patch("python.ai.call_api", return_value=b"audio")
     def test_text_to_audio_returns_provider_bytes(self, call):
         result = text_to_audio(
@@ -594,6 +646,23 @@ class TestAITools(unittest.TestCase):
         )
         self.assertEqual(result, {"state": "done"})
         self.assertEqual(call.call_args_list[1].args[0], "/jobs/job-1")
+
+    @patch("python.ai.call_api", return_value={"status": "completed"})
+    def test_text_to_video_omits_unconfigured_placeholder_model(self, call):
+        text_to_video(
+            "animate",
+            config={
+                "ai": {
+                    "video": {
+                        "endpoint": "/create",
+                        "status_endpoint": "/jobs/{task_id}",
+                        "model": "YOUR_VIDEO_MODEL",
+                    }
+                }
+            },
+        )
+        payload = call.call_args.kwargs["payload"]
+        self.assertNotIn("model", payload)
 
 
     @patch("python.ai.time.sleep")
@@ -662,6 +731,47 @@ class TestAITools(unittest.TestCase):
             self.assertEqual(
                 call.call_args_list[2].kwargs["config"]["ai"]["video"]["api_key"],
                 "m2a-test",
+            )
+
+    @patch("python.ai.requests.post")
+    @patch("python.ai.time.sleep")
+    @patch("python.ai.call_api")
+    def test_text_to_video_deletes_remote_media_after_download(self, call, _sleep, delete):
+        call.side_effect = [
+            {"id": "job-1"},
+            {
+                "status": "succeeded",
+                "video": {
+                    "url": "/media/job-1.mp4",
+                },
+            },
+            b"video",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "video.mp4"
+            text_to_video(
+                "animate",
+                output=output,
+                config={
+                    "ai": {
+                        "video": {
+                            "base_url": "http://media.example/v1",
+                            "api_key": "video-secret",
+                            "endpoint": "/videos",
+                            "status_endpoint": "/videos/{task_id}",
+                            "poll_interval_seconds": 0,
+                        }
+                    }
+                },
+            )
+            self.assertEqual(output.read_bytes(), b"video")
+            self.assertEqual(
+                delete.call_args.kwargs["json"],
+                {"names": ["job-1.mp4"]},
+            )
+            self.assertEqual(
+                delete.call_args.kwargs["headers"]["Authorization"],
+                "Bearer video-secret",
             )
 
     @patch("python.ai.time.sleep")

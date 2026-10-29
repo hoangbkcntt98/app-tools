@@ -223,7 +223,13 @@ def _run(args: argparse.Namespace) -> None:
         from python.ai import text_to_audio, text_to_image, text_to_video
 
         if args.command == "ai-image":
-            result = text_to_image(args.prompt, model=args.model, options=args.options, config=config)
+            result = text_to_image(
+                args.prompt,
+                model=args.model,
+                options=args.options,
+                output=args.output,
+                config=config,
+            )
         elif args.command == "ai-audio":
             result = text_to_audio(args.text, model=args.model, options=args.options, config=config)
         else:

@@ -14,3 +14,4 @@ output/
 !**/config.example.json
 !**/package.json
 !**/tsconfig.json
+**/.venv
