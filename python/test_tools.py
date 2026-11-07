@@ -10,6 +10,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import requests
+
 from python.ai import call_api, text_to_audio, text_to_image, text_to_video
 from python.database import DatabasePool
 from python.facebook import FacebookTool
@@ -604,6 +606,91 @@ class TestAITools(unittest.TestCase):
                 delete.call_args.kwargs["headers"]["Authorization"],
                 "Bearer image-secret",
             )
+
+    @patch("python.ai.requests.post")
+    @patch("python.ai.requests.get")
+    @patch("python.ai.call_api", return_value={
+        "created": 1790148495,
+        "data": [{
+            "revised_prompt": "A cute cat sitting on a sofa",
+            "url": "/v1/media/img_abc123.webp",
+            "kind": "image",
+            "bytes": 54210,
+        }],
+    })
+    def test_muse_image_deletes_media_url_from_data_response(
+        self, _call, download, delete
+    ):
+        download.return_value.content = b"image"
+        with tempfile.TemporaryDirectory() as directory:
+            result = text_to_image(
+                "draw",
+                output=Path(directory) / "image.webp",
+                config={
+                    "ai": {
+                        "image": {
+                            "base_url": "http://localhost:18610/v1",
+                            "endpoint": "/images",
+                            "model": "muse-image",
+                        }
+                    }
+                },
+            )
+        self.assertEqual(result, b"image")
+        self.assertEqual(
+            _call.call_args.kwargs["payload"]["response_format"], "url"
+        )
+        download.assert_called_once_with(
+            "http://localhost:18610/v1/media/img_abc123.webp", timeout=120
+        )
+        self.assertEqual(
+            delete.call_args.kwargs["json"],
+            {"names": ["img_abc123.webp"]},
+        )
+
+    @patch("python.ai.requests.post", side_effect=requests.RequestException("server unavailable"))
+    @patch("python.ai.call_api", return_value={
+        "data": [{"b64_json": "aW1hZ2U="}],
+        "images": ["generated-image.png"],
+    })
+    def test_media_delete_failure_logs_warning(self, _call, _delete):
+        logger = MagicMock()
+        with tempfile.TemporaryDirectory() as directory:
+            text_to_image(
+                "draw",
+                output=Path(directory) / "image.png",
+                config={
+                    "ai": {
+                        "image": {
+                            "base_url": "http://media.example/v1",
+                            "endpoint": "/images",
+                            "model": "muse-image",
+                        }
+                    }
+                },
+                logger=logger,
+            )
+        logger.warning.assert_called_once()
+
+    @patch("python.ai.call_api", return_value={"data": [{"b64_json": "aW1hZ2U="}]})
+    def test_media_cleanup_without_name_logs_warning(self, _call):
+        logger = MagicMock()
+        with tempfile.TemporaryDirectory() as directory:
+            text_to_image(
+                "draw",
+                output=Path(directory) / "image.png",
+                config={
+                    "ai": {
+                        "image": {
+                            "base_url": "http://media.example/v1",
+                            "endpoint": "/images",
+                            "model": "muse-image",
+                        }
+                    }
+                },
+                logger=logger,
+            )
+        logger.warning.assert_called_once()
 
     @patch("python.ai.call_api", return_value=b"audio")
     def test_text_to_audio_returns_provider_bytes(self, call):

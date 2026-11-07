@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 import os
 import time
-import warnings
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from urllib.parse import unquote, urljoin, urlsplit
@@ -13,6 +13,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 import requests
 
 from .config import section_config
+from .logger import get_logger
 
 
 class VideoTaskFailed(RuntimeError):
@@ -110,6 +111,7 @@ def _image_bytes(
     data_field: str,
     base64_field: str,
     url_field: str,
+    base_url: str = "",
 ) -> bytes:
     data = response.get(data_field) if isinstance(response, dict) else None
     item = data[0] if isinstance(data, list) and data else response
@@ -122,7 +124,10 @@ def _image_bytes(
             return base64.b64decode(encoded, validate=True)
         image_url = item.get(url_field)
         if image_url:
-            download = requests.get(str(image_url), timeout=timeout)
+            image_url = str(image_url)
+            if not image_url.startswith(("http://", "https://")) and base_url:
+                image_url = urljoin(base_url.rstrip("/") + "/", image_url)
+            download = requests.get(image_url, timeout=timeout)
             download.raise_for_status()
             return download.content
     raise RuntimeError("Image API response must contain base64 data or an image URL")
@@ -164,6 +169,9 @@ def _media_names(response: Any) -> list[str]:
 
     def find_media(value: Any) -> None:
         if isinstance(value, Mapping):
+            # Muse image responses place generated media under data[].url.
+            if str(value.get("kind", "")).lower() == "image":
+                add_name(value.get("url"))
             for key, child in value.items():
                 normalized_key = str(key).lower()
                 if normalized_key == "images":
@@ -184,10 +192,15 @@ def _delete_remote_media(
     response: Any,
     settings: Mapping[str, Any],
     config: Mapping[str, Any] | str | Path | None,
+    logger: logging.Logger | None = None,
 ) -> None:
     """Delete generated server-side media after a local copy has been saved."""
+    logger = logger or get_logger("common-tools", config)
     names = _media_names(response)
     if not names:
+        logger.warning(
+            "Remote media cleanup skipped: provider response contains no media name."
+        )
         return
     root_settings = section_config(config, "ai")
     endpoint = str(
@@ -198,11 +211,11 @@ def _delete_remote_media(
     base_url = str(settings.get("base_url", "")).strip()
     if not endpoint:
         if not base_url:
-            warnings.warn("Cannot delete remote media: service base_url is missing.", RuntimeWarning)
+            logger.warning("Cannot delete remote media: service base_url is missing.")
             return
         parsed = urlsplit(base_url)
         if not parsed.scheme or not parsed.netloc:
-            warnings.warn("Cannot delete remote media: service base_url is invalid.", RuntimeWarning)
+            logger.warning("Cannot delete remote media: service base_url is invalid.")
             return
         endpoint = f"{parsed.scheme}://{parsed.netloc}/admin/media/delete"
     auth_settings = {
@@ -221,8 +234,9 @@ def _delete_remote_media(
             timeout=float(settings.get("timeout_seconds", 120)),
         )
         response.raise_for_status()
+        logger.info("Deleted remote media: %s", names)
     except requests.RequestException as exc:
-        warnings.warn(f"Remote media deletion failed: {exc}", RuntimeWarning)
+        logger.warning("Remote media deletion failed for %s: %s", names, exc)
 
 
 def text_to_image(
@@ -233,6 +247,7 @@ def text_to_image(
     options: Mapping[str, Any] | None = None,
     output: str | Path | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
+    logger: logging.Logger | None = None,
 ) -> bytes:
     """Generate image bytes from text using configured image API."""
     if not prompt.strip():
@@ -247,6 +262,10 @@ def text_to_image(
         raise ValueError("Provide image endpoint and model in arguments or ai.image config")
     payload = dict(image_settings.get("request_options", {}))
     payload.update(dict(options or {}))
+    is_muse_image = str(selected_model).strip().lower() == "muse-image"
+    if is_muse_image and "response_format" not in (options or {}):
+        # Muse must return a media URL so cleanup can identify the server-side file.
+        payload["response_format"] = "url"
     payload[str(image_settings.get("model_field", "model"))] = selected_model
     payload[str(image_settings.get("prompt_field", "prompt"))] = prompt
     response = call_api(
@@ -262,13 +281,14 @@ def text_to_image(
         data_field=str(image_settings.get("data_field", "data")),
         base64_field=str(image_settings.get("base64_response_field", "b64_json")),
         url_field=str(image_settings.get("url_response_field", "url")),
+        base_url=str(image_settings.get("base_url", settings.get("base_url", ""))),
     )
     if output is not None:
         output_path = Path(output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(image)
-        if str(selected_model).strip().lower() == "muse-image":
-            _delete_remote_media(response, image_settings, config)
+        if is_muse_image:
+            _delete_remote_media(response, image_settings, config, logger)
     return image
 
 
@@ -327,6 +347,7 @@ def text_to_video(
     output: str | Path | None = None,
     config: Mapping[str, Any] | str | Path | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    logger: logging.Logger | None = None,
 ) -> dict[str, Any]:
     """Create and poll a video task using configurable provider response fields."""
     if not prompt.strip():
@@ -361,7 +382,7 @@ def text_to_video(
     if not task_id:
         if output is not None:
             _save_video(result, Path(output), video_settings, config)
-            _delete_remote_media(result, video_settings, config)
+            _delete_remote_media(result, video_settings, config, logger)
         if progress_callback:
             progress_callback({"phase": "completed"})
         return result
@@ -390,7 +411,7 @@ def text_to_video(
         if status in success_values:
             if output is not None:
                 _save_video(result, Path(output), video_settings, config)
-                _delete_remote_media(result, video_settings, config)
+                _delete_remote_media(result, video_settings, config, logger)
             if progress_callback:
                 progress_callback({"phase": "completed", "task_id": str(task_id), "status": status})
             return result
